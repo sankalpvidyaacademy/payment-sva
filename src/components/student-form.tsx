@@ -333,7 +333,7 @@ export function StudentForm({ studentId, onSubmitted }: StudentFormProps) {
     <div className="max-w-2xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h1 className="text-2xl font-bold text-foreground">
           {isEditing ? 'Edit Student' : 'Register New Student'}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -574,7 +574,7 @@ export function StudentForm({ studentId, onSubmitted }: StudentFormProps) {
 
               {/* Fee Breakdown */}
               <div className="space-y-2">
-                <h4 className="text-sm font-semibold text-gray-900">Fee Breakdown</h4>
+                <h4 className="text-sm font-semibold text-foreground">Fee Breakdown</h4>
                 {subjectFees.map((sf) => (
                   <div key={sf.subject} className="flex items-center justify-between py-1.5">
                     <span className="text-sm text-muted-foreground">{sf.subject}</span>

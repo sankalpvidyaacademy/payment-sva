@@ -168,7 +168,7 @@ export function TeacherForm({ onSubmitted }: TeacherFormProps) {
     <div className="max-w-2xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Register New Teacher</h1>
+        <h1 className="text-2xl font-bold text-foreground">Register New Teacher</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Add a new teacher to the academy
         </p>
@@ -321,7 +321,7 @@ export function TeacherForm({ onSubmitted }: TeacherFormProps) {
 
             {/* Login Credentials */}
             <div className="space-y-4">
-              <h4 className="text-sm font-semibold text-gray-900">Login Credentials</h4>
+              <h4 className="text-sm font-semibold text-foreground">Login Credentials</h4>
               <div className="rounded-xl bg-amber-50 border border-amber-200 p-3">
                 <p className="text-xs text-amber-700">
                   The teacher will use these credentials to log in and view their salary details.

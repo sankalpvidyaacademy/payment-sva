@@ -291,3 +291,51 @@ Created five frontend components: Profit/Loss Reports, Pending Fees Dashboard, T
 - ESLint passed with zero errors on all five new files
 - Dev server compiles successfully
 - Detailed work log in `/agent-ctx/12-15-panels-reports.md`
+
+---
+
+## Task 7: Teacher Management Component & PUT API
+**Agent**: Frontend Developer  
+**Date**: 2026-04-21  
+**Status**: COMPLETED
+
+### What was done:
+Created the Teacher Management component (mirroring Student Management pattern) and added a PUT handler to the teachers API route for future edit support.
+
+### Files Created:
+1. `/src/components/teacher-management.tsx` - Teacher Management Page
+   - **Header**: Title "Teacher Management" with subtitle + "Add Teacher" button (brand color `bg-[#2F2FE4]`)
+   - **Filters**: Search by name/username (Input with Search icon) + Class filter dropdown (Select with CLASS_OPTIONS)
+   - **Stats Cards** (1-col mobile, 3-col desktop): Total Teachers (blue), Classes Covered (emerald), Subjects Taught (orange)
+   - **Desktop Table View**: Name, Username, Classes (Badge outlines), Subjects (secondary badges, max 3 shown + count), Actions (Edit/Delete buttons)
+   - **Mobile Card View**: Teacher name + username, Classes badges, Subjects badges, Edit/Delete buttons
+   - **Add Teacher**: Shows TeacherForm component with `onSubmitted` callback
+   - **Edit Button**: Currently shows toast "Edit functionality coming soon" (TeacherForm doesn't support edit mode yet, but PUT API is ready)
+   - **Delete**: AlertDialog confirmation with teacher name highlighted, loading state on confirm, deletes via `DELETE /api/teachers/[id]`
+   - **Empty State**: GraduationCap icon with helpful message
+   - **Loading State**: Centered Loader2 spinner with brand color
+   - Data fetching: GET `/api/teachers?className=X`, refreshes on `refreshKey` and `selectedClass` change
+   - Uses `useAppStore` for `refreshKey`
+   - Named export: `TeacherManagement`
+
+### Files Modified:
+1. `/src/app/api/teachers/route.ts` - Added PUT handler
+   - Accepts: `{ id, name, classes, subjects, username, password? }`
+   - Validates teacher exists (404 if not found)
+   - Checks username uniqueness on change (409 if duplicate)
+   - Updates User record (name, username, password if provided; password hashed with bcryptjs)
+   - Updates Teacher record (name, classes as JSON, subjects as JSON)
+   - Returns updated teacher with parsed JSON fields (classes, subjects arrays) and full relations
+
+### Design Consistency:
+- Brand color #2F2FE4 for primary buttons
+- Mobile-first: Cards on mobile (`md:hidden`), table on desktop (`hidden md:block`)
+- shadcn/ui components: Card, Button, Badge, Input, Select, Table, AlertDialog, Separator
+- Lucide icons: UserPlus, Search, Pencil, Trash2, Loader2, GraduationCap, BookOpen, Users
+- Dark mode compatible (`text-foreground`, `text-muted-foreground`)
+- Toast notifications via `sonner`
+- Follows exact same patterns as StudentManagement component
+
+### Testing:
+- ESLint passed with zero errors on all files
+- Dev server compiles successfully

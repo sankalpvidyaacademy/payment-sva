@@ -127,7 +127,7 @@ export function AdminDashboard() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Session {getSessionYear()}-{(getSessionYear() + 1) % 100} Overview
         </p>
@@ -147,7 +147,7 @@ export function AdminDashboard() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">Total Students</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{data.studentCount}</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">{data.studentCount}</p>
                 </div>
                 <div className="rounded-lg bg-blue-100 p-2.5">
                   <Users className="h-5 w-5 text-blue-600" />
@@ -169,7 +169,7 @@ export function AdminDashboard() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs font-medium text-emerald-600 uppercase tracking-wide">Fees Received</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(totalFees)}</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">{formatCurrency(totalFees)}</p>
                 </div>
                 <div className="rounded-lg bg-emerald-100 p-2.5">
                   <IndianRupee className="h-5 w-5 text-emerald-600" />
@@ -191,7 +191,7 @@ export function AdminDashboard() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs font-medium text-orange-600 uppercase tracking-wide">Total Expenses</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(totalExpenses)}</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">{formatCurrency(totalExpenses)}</p>
                 </div>
                 <div className="rounded-lg bg-orange-100 p-2.5">
                   <Receipt className="h-5 w-5 text-orange-600" />
@@ -215,7 +215,7 @@ export function AdminDashboard() {
                   <p className="text-xs font-medium uppercase tracking-wide" style={{ color: isProfit ? '#16a34a' : '#dc2626' }}>
                     {isProfit ? 'Profit' : 'Loss'}
                   </p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">
+                  <p className="text-2xl font-bold text-foreground mt-1">
                     {isProfit ? '+' : '-'}{formatCurrency(Math.abs(profitLoss))}
                   </p>
                 </div>
@@ -319,7 +319,7 @@ export function AdminDashboard() {
                           <IndianRupee className="h-4 w-4 text-emerald-600" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-900">
+                          <p className="text-sm font-medium text-foreground">
                             {(payment as FeePayment & { student?: { name?: string; className?: string } }).student?.name || 'Student'}
                           </p>
                           <p className="text-xs text-muted-foreground">

@@ -4,8 +4,8 @@ import { useAppStore } from '@/lib/store'
 import Login from '@/components/login'
 import AppLayout from '@/components/app-layout'
 import { AdminDashboard } from '@/components/admin-dashboard'
-import { StudentForm } from '@/components/student-form'
-import { TeacherForm } from '@/components/teacher-form'
+import { StudentManagement } from '@/components/student-management'
+import { TeacherManagement } from '@/components/teacher-management'
 import { FeeCollection } from '@/components/fee-collection'
 import { SalaryManagement } from '@/components/salary-management'
 import { ExpensesManagement } from '@/components/expenses-management'
@@ -20,9 +20,9 @@ function AdminViews({ view }: { view: string }) {
     case 'dashboard':
       return <AdminDashboard />
     case 'students':
-      return <StudentForm />
+      return <StudentManagement />
     case 'teachers':
-      return <TeacherForm />
+      return <TeacherManagement />
     case 'fees':
       return <FeeCollection />
     case 'salary':

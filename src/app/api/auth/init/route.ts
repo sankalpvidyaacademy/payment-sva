@@ -15,14 +15,14 @@ export async function GET() {
       });
     }
 
-    const hashedPassword = hashSync('admin123', 10);
+    const hashedPassword = hashSync('Shobhit@1502', 10);
 
     const newAdmin = await db.user.create({
       data: {
-        username: 'admin',
+        username: 'shobhit',
         password: hashedPassword,
         role: 'ADMIN',
-        name: 'Admin',
+        name: 'Shobhit',
       },
     });
 
