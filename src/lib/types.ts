@@ -27,10 +27,19 @@ export interface FeePayment {
   createdAt: string
 }
 
+export interface MonthlyFeeDistribution {
+  id: string
+  studentId: string
+  month: number
+  year: number
+  amount: number
+}
+
 export interface StudentData {
   id: string
   userId: string
   name: string
+  dob: string | null
   className: string
   subjects: string[]
   totalYearlyFee: number
@@ -40,6 +49,7 @@ export interface StudentData {
   updatedAt: string
   subjectFees: SubjectFee[]
   feePayments: FeePayment[]
+  monthlyFeeDistributions: MonthlyFeeDistribution[]
   user: { id: string; username: string; role: string; name: string }
 }
 

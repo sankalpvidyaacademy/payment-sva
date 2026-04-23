@@ -51,9 +51,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find the student
+    // Find the student with monthlyFeeDistributions
     const student = await db.student.findUnique({
       where: { id: studentId },
+      include: {
+        monthlyFeeDistributions: true,
+      },
     });
 
     if (!student) {
@@ -73,7 +76,14 @@ export async function POST(request: NextRequest) {
     });
 
     const slipNumber = 'SLP-' + Date.now();
-    const monthlyFee = student.monthlyFee;
+
+    // Look up MonthlyFeeDistribution for the specific month/year
+    const monthInt = parseInt(String(month));
+    const yearInt = parseInt(String(year));
+    const distribution = student.monthlyFeeDistributions.find(
+      (d) => d.month === monthInt && d.year === yearInt
+    );
+    const monthlyFee = distribution ? distribution.amount : student.monthlyFee;
 
     let feePayment;
 
@@ -101,12 +111,12 @@ export async function POST(request: NextRequest) {
         },
       });
     } else {
-      // Create new payment
+      // Create new payment with amountDue from distribution
       feePayment = await db.feePayment.create({
         data: {
           studentId,
-          month: parseInt(String(month)),
-          year: parseInt(String(year)),
+          month: monthInt,
+          year: yearInt,
           amountDue: monthlyFee,
           amountPaid: parseFloat(String(amountPaid)),
           paymentMode: paymentMode || 'Offline',

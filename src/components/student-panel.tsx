@@ -56,6 +56,14 @@ function getSessionYear(): number {
   return month >= 1 && month <= 3 ? year - 1 : year
 }
 
+// Helper to get per-month fee amount from distributions
+function getMonthFeeAmount(student: StudentData, month: number, year: number): number {
+  const dist = student.monthlyFeeDistributions?.find(
+    (d) => d.month === month && d.year === year
+  )
+  return dist ? dist.amount : student.monthlyFee
+}
+
 export default function StudentPanel() {
   const { user, studentView, refreshKey } = useAppStore()
   const [student, setStudent] = useState<StudentData | null>(null)
@@ -380,7 +388,7 @@ export default function StudentPanel() {
               statusClass = 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-200'
             }
 
-            const amountDue = student.monthlyFee
+            const amountDue = getMonthFeeAmount(student, m, year)
             const amountPaid = payment?.amountPaid || 0
 
             return (

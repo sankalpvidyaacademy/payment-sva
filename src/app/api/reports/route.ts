@@ -180,7 +180,7 @@ async function getPendingFeesReport(searchParams: URLSearchParams) {
 
   const sessionMonths = getSessionMonths(currentSessionYear);
 
-  // Get all students with their fee payments for the session
+  // Get all students with their fee payments and monthly distributions for the session
   const students = await db.student.findMany({
     include: {
       subjectFees: true,
@@ -192,6 +192,7 @@ async function getPendingFeesReport(searchParams: URLSearchParams) {
           })),
         },
       },
+      monthlyFeeDistributions: true,
     },
     orderBy: { className: 'asc' },
   });
@@ -220,7 +221,11 @@ async function getPendingFeesReport(searchParams: URLSearchParams) {
         (fp) => fp.month === month && fp.year === year
       );
 
-      const amountDue = student.monthlyFee;
+      // Use monthlyFeeDistribution amount if available, fall back to monthlyFee
+      const distribution = student.monthlyFeeDistributions.find(
+        (d) => d.month === month && d.year === year
+      );
+      const amountDue = distribution ? distribution.amount : student.monthlyFee;
       const amountPaid = payment ? payment.amountPaid : 0;
 
       let status: string;

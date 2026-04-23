@@ -339,3 +339,124 @@ Created the Teacher Management component (mirroring Student Management pattern) 
 ### Testing:
 - ESLint passed with zero errors on all files
 - Dev server compiles successfully
+
+---
+
+## Task 2 (Updated): Student Form - Corrected PRD Requirements
+**Agent**: Frontend Developer  
+**Date**: 2026-04-21  
+**Status**: COMPLETED
+
+### What was done:
+Updated the Student Form component and API routes to implement the corrected PRD requirements: DOB field, mandatory coaching fee, admin-controlled monthly fee distribution, and updated API payloads.
+
+### Files Modified:
+
+1. `/src/components/student-form.tsx` - Complete rewrite with corrected PRD requirements
+   - **Step 1 - Basic Details**: Added Date of Birth (DOB) field with `type="date"` input, Calendar icon in label, max date set to today, mandatory validation
+   - **Step 2 - Subjects & Fees**:
+     - Changed "Coaching Fee (Optional)" label to "Coaching Fee *" with mandatory validation (must be > 0)
+     - Updated Total Yearly Fee formula: `subjectFeeTotal + coachingFee` (coaching fee now included)
+     - Replaced single "Monthly Fee" input with **Admin-Controlled Monthly Fee Distribution**:
+       - 12 month entries in session order (Apr→Mar), each showing Month name + Year + Amount input
+       - "Auto-fill Evenly" button: distributes totalYearlyFee evenly across 12 months (handles remainder)
+       - "Auto-fill with Coaching Fee" button: distributes subject fees evenly, adds full coaching fee to April (first month of session)
+       - Warning (amber/red) if sum of monthly distributions ≠ total yearly fee: "⚠️ Total monthly fees (₹X) don't match total yearly fee (₹Y). Difference: ₹Z"
+       - Warning color escalates to red if difference > ₹100
+       - "Distribution Total" summary row at bottom (green if match, red if mismatch)
+       - Scrollable month list (max-h-[420px]) with custom styling
+       - `distributionsTouched` flag to prevent auto-overwriting manual edits
+   - **Step 3 - Fee Summary**: 
+     - Added DOB display (formatted with `toLocaleDateString('en-IN')`)
+     - Coaching Fee always shown (no longer conditional on > 0)
+     - Added "Avg. Monthly Fee" display
+     - Added Monthly Fee Distribution grid (2-col mobile, 3-col desktop) with per-month amounts
+     - Added "Total Distributed" summary with mismatch warning
+   - **Step 4 - Credentials**: Unchanged
+   - **Payload sent to API**: Now includes `dob` (ISO date), `coachingFee` (mandatory, > 0), `monthlyFeeDistributions` (array of { month, year, amount }), and `monthlyFee` (average for backward compat = totalYearlyFee / 12)
+   - **Validation**: Step 1 requires DOB, Step 2 requires coachingFee > 0
+   - **Edit mode**: Loads DOB from student data, loads monthlyFeeDistributions from API (falls back to monthlyFee if no distributions exist)
+   - **Helper functions**: `getCalendarYear()` computes calendar year from session month + session year
+   - **Dark mode**: Full dark mode support with `dark:` Tailwind classes
+   - New Lucide icons: AlertTriangle, Wand2, DollarSign, Calendar
+   - New imports: `useMemo` from React, `MONTH_SHORT` from types
+
+2. `/src/app/api/students/route.ts` - Updated to handle dob and monthlyFeeDistributions
+   - **GET**: Now includes `monthlyFeeDistributions` in the Prisma query (ordered by year, month)
+   - **POST**: 
+     - Accepts `dob` and `monthlyFeeDistributions` from request body
+     - Validates DOB is required (400 if missing)
+     - Validates coachingFee > 0 (400 if missing or 0)
+     - Creates student with `dob: new Date(dob)` 
+     - Creates `monthlyFeeDistributions` records alongside subjectFees
+     - Returns student with monthlyFeeDistributions included
+   - **PUT**: 
+     - Accepts `dob` and `monthlyFeeDistributions` from request body
+     - Updates `dob` field on student record
+     - Deletes existing monthlyFeeDistributions before recreating (like subjectFees pattern)
+     - Creates new monthlyFeeDistributions records
+     - Returns student with monthlyFeeDistributions included
+
+3. `/src/app/api/students/[id]/route.ts` - Updated to include monthlyFeeDistributions
+   - **GET**: Now includes `monthlyFeeDistributions` in the Prisma query (ordered by year, month)
+   - This ensures edit mode in StudentForm can load existing monthly distributions
+
+### Key Design Decisions:
+- **totalYearlyFee now includes coachingFee**: Previously was subject fees only; now `totalYearlyFee = subjectFeeTotal + coachingFee`
+- **"Auto-fill with Coaching Fee" behavior**: Distributes subject fees evenly, then adds full coaching fee to April (first session month). Admin can then manually adjust.
+- **Auto-fill vs manual edit**: Distributions auto-fill evenly when untouched; once user manually edits or clicks a button, future totalYearlyFee changes don't auto-overwrite.
+- **Warning vs blocking**: Distribution mismatch shows a warning (amber/red) but still allows saving, as specified in the PRD.
+- **Backward compat**: `monthlyFee` field is still sent as `totalYearlyFee / 12` for components that reference it.
+
+### Testing:
+- ESLint passed with zero errors
+- Dev server compiles successfully (GET / 200)
+
+---
+
+## Task 4-5-6: Monthly Fee Distribution Integration
+**Agent**: Fullstack Developer  
+**Date**: 2026-04-21  
+**Status**: COMPLETED
+
+### What was done:
+Updated 4 files to integrate MonthlyFeeDistribution throughout the fee collection and reporting system, ensuring per-month fee amounts are used instead of a flat monthlyFee.
+
+### Files Modified:
+
+1. `/src/app/api/fees/route.ts` - Fee Collection API
+   - Student query now includes `monthlyFeeDistributions` in the `include` object
+   - When creating a new FeePayment, looks up MonthlyFeeDistribution for the specific month/year
+   - Sets `amountDue` from the distribution amount if found, falls back to `student.monthlyFee`
+   - Uses `monthInt` and `yearInt` variables (parsed once) for consistent usage
+   - Existing payment updates remain unchanged (amountDue set correctly on first creation)
+
+2. `/src/app/api/reports/route.ts` - Pending Fees Report
+   - Student query in `getPendingFeesReport` now includes `monthlyFeeDistributions`
+   - For each session month, looks up the distribution amount before calculating status
+   - `amountDue` is now set from distribution if available, falls back to `student.monthlyFee`
+   - Status logic unchanged: unpaid, partial, paid, advance
+
+3. `/src/components/fee-collection.tsx` - Fee Collection UI
+   - Added `getMonthFeeAmount()` helper to look up per-month fee from distributions
+   - Replaced `selectedStudent.monthlyFee` with `currentMonthFee` (computed from distribution)
+   - `currentMonthFee` dynamically updates when admin changes month/year selector
+   - "Month Year Fee:" display and "Due for this month:" use distribution amount
+
+4. `/src/components/student-panel.tsx` - Student Panel
+   - Added `getMonthFeeAmount()` helper function
+   - In Fees View monthly breakdown, replaced `student.monthlyFee` with `getMonthFeeAmount(student, m, year)`
+   - Each month card now shows correct per-month distribution amount
+
+### Verified:
+- Student API routes already include `monthlyFeeDistributions` in Prisma queries
+- `StudentData` and `MonthlyFeeDistribution` types already defined in `/src/lib/types.ts`
+- ESLint passes with zero errors
+- Dev server compiles successfully
+
+### Key Design Decisions:
+- Helper `getMonthFeeAmount(student, month, year)` uses optional chaining for safety
+- Falls back to `student.monthlyFee` when no distribution exists (backward compat)
+- Carry-forward logic (advance/partial) preserved by storing `amountDue` from distribution at creation time
+
+Detailed work log in `/agent-ctx/4-5-6-monthly-fee-distribution.md`

@@ -94,6 +94,14 @@ function getCurrentYear(): number {
   return new Date().getFullYear()
 }
 
+// Helper to get per-month fee amount from distributions
+function getMonthFeeAmount(student: StudentData, month: number, year: number): number {
+  const dist = student.monthlyFeeDistributions?.find(
+    (d) => d.month === month && d.year === year
+  )
+  return dist ? dist.amount : student.monthlyFee
+}
+
 export function FeeCollection() {
   const [students, setStudents] = useState<StudentData[]>([])
   const [loading, setLoading] = useState(true)
@@ -239,11 +247,14 @@ export function FeeCollection() {
     window.print()
   }
 
+  const currentMonthFee = selectedStudent
+    ? getMonthFeeAmount(selectedStudent, parseInt(payingMonth), parseInt(payingYear))
+    : 0
   const currentMonthPaid = selectedStudent
     ? getMonthPaid(selectedStudent, parseInt(payingMonth), parseInt(payingYear))
     : 0
   const currentMonthDue = selectedStudent
-    ? selectedStudent.monthlyFee - currentMonthPaid
+    ? currentMonthFee - currentMonthPaid
     : 0
 
   return (
@@ -557,7 +568,7 @@ export function FeeCollection() {
                     {MONTH_NAMES[parseInt(payingMonth)]} {payingYear} Fee:
                   </span>
                   <span className="font-medium">
-                    {formatINR(selectedStudent.monthlyFee)}
+                    {formatINR(currentMonthFee)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm mt-1">

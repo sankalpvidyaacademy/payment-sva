@@ -24,17 +24,19 @@ model Student {
   id             String   @id @default(cuid())
   userId         String   @unique
   name           String
+  dob            DateTime? // Date of Birth (mandatory per PRD but stored optional for migration)
   className      String   // "4", "5", "6", "7", "8", "9 CBSE", "10 CBSE", "9 ICSE", "10 ICSE", "11 Science", "12 Science", "11 Commerce", "12 Commerce"
   subjects       String   // JSON array of subject names
   totalYearlyFee Float    @default(0)
-  coachingFee    Float    @default(0)
-  monthlyFee     Float    @default(0)
+  coachingFee    Float    @default(0) // Mandatory per corrected PRD
+  monthlyFee     Float    @default(0) // Kept for backward compat, actual per-month amounts in MonthlyFeeDistribution
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subjectFees SubjectFee[]
-  feePayments FeePayment[]
+  user                 User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjectFees          SubjectFee[]
+  feePayments          FeePayment[]
+  monthlyFeeDistributions MonthlyFeeDistribution[]
 }
 
 model SubjectFee {
@@ -87,6 +89,18 @@ model SalaryPayment {
   createdAt       DateTime @default(now())
 
   teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+}
+
+model MonthlyFeeDistribution {
+  id        String @id @default(cuid())
+  studentId String
+  month     Int    // 4=April ... 12=Dec, 1=Jan, 2=Feb, 3=March
+  year      Int    // The calendar year this month falls in
+  amount    Float  @default(0) // Admin-defined fee amount for this specific month
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, month, year]) // One distribution per student per month
 }
 
 model Expense {

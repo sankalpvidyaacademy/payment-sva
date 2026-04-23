@@ -15,6 +15,9 @@ export async function GET(
         feePayments: {
           orderBy: [{ year: 'asc' }, { month: 'asc' }],
         },
+        monthlyFeeDistributions: {
+          orderBy: [{ year: 'asc' }, { month: 'asc' }],
+        },
         user: {
           select: { id: true, username: true, role: true, name: true },
         },

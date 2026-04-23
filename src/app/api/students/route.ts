@@ -19,6 +19,9 @@ export async function GET(request: NextRequest) {
         feePayments: {
           orderBy: [{ year: 'asc' }, { month: 'asc' }],
         },
+        monthlyFeeDistributions: {
+          orderBy: [{ year: 'asc' }, { month: 'asc' }],
+        },
         user: {
           select: { id: true, username: true, role: true, name: true },
         },
@@ -47,11 +50,13 @@ export async function POST(request: NextRequest) {
     const {
       name,
       className,
+      dob,
       subjects,
       totalYearlyFee,
       coachingFee,
       monthlyFee,
       subjectFees,
+      monthlyFeeDistributions,
       username,
       password,
     } = body;
@@ -59,6 +64,20 @@ export async function POST(request: NextRequest) {
     if (!name || !className || !username || !password) {
       return NextResponse.json(
         { error: 'Name, className, username, and password are required' },
+        { status: 400 }
+      );
+    }
+
+    if (!dob) {
+      return NextResponse.json(
+        { error: 'Date of birth is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!coachingFee || coachingFee <= 0) {
+      return NextResponse.json(
+        { error: 'Coaching fee is required and must be greater than 0' },
         { status: 400 }
       );
     }
@@ -87,11 +106,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Create Student with subjectFees
+    // Create Student with subjectFees and monthlyFeeDistributions
     const student = await db.student.create({
       data: {
         userId: user.id,
         name,
+        dob: dob ? new Date(dob) : null,
         className,
         subjects: JSON.stringify(subjects || []),
         totalYearlyFee: totalYearlyFee || 0,
@@ -105,9 +125,24 @@ export async function POST(request: NextRequest) {
             })
           ),
         },
+        monthlyFeeDistributions: {
+          create: (monthlyFeeDistributions || []).map(
+            (mfd: { month: number; year: number; amount: number }) => ({
+              month: mfd.month,
+              year: mfd.year,
+              amount: mfd.amount || 0,
+            })
+          ),
+        },
       },
       include: {
         subjectFees: true,
+        feePayments: {
+          orderBy: [{ year: 'asc' }, { month: 'asc' }],
+        },
+        monthlyFeeDistributions: {
+          orderBy: [{ year: 'asc' }, { month: 'asc' }],
+        },
         user: {
           select: { id: true, username: true, role: true, name: true },
         },
@@ -137,11 +172,13 @@ export async function PUT(request: NextRequest) {
       id,
       name,
       className,
+      dob,
       subjects,
       totalYearlyFee,
       coachingFee,
       monthlyFee,
       subjectFees,
+      monthlyFeeDistributions,
       username,
       password,
     } = body;
@@ -181,6 +218,7 @@ export async function PUT(request: NextRequest) {
     // Update student
     const studentUpdateData: Record<string, unknown> = {};
     if (name) studentUpdateData.name = name;
+    if (dob !== undefined) studentUpdateData.dob = dob ? new Date(dob) : null;
     if (className) studentUpdateData.className = className;
     if (subjects !== undefined)
       studentUpdateData.subjects = JSON.stringify(subjects);
@@ -192,6 +230,13 @@ export async function PUT(request: NextRequest) {
     if (subjectFees !== undefined) {
       // Delete existing subject fees and recreate
       await db.subjectFee.deleteMany({
+        where: { studentId: id },
+      });
+    }
+
+    if (monthlyFeeDistributions !== undefined) {
+      // Delete existing monthly fee distributions and recreate
+      await db.monthlyFeeDistribution.deleteMany({
         where: { studentId: id },
       });
     }
@@ -210,10 +255,24 @@ export async function PUT(request: NextRequest) {
             ),
           },
         }),
+        ...(monthlyFeeDistributions !== undefined && {
+          monthlyFeeDistributions: {
+            create: monthlyFeeDistributions.map(
+              (mfd: { month: number; year: number; amount: number }) => ({
+                month: mfd.month,
+                year: mfd.year,
+                amount: mfd.amount || 0,
+              })
+            ),
+          },
+        }),
       },
       include: {
         subjectFees: true,
         feePayments: true,
+        monthlyFeeDistributions: {
+          orderBy: [{ year: 'asc' }, { month: 'asc' }],
+        },
         user: {
           select: { id: true, username: true, role: true, name: true },
         },
