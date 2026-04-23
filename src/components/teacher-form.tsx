@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import {
   Eye,
   EyeOff,
   Loader2,
   GraduationCap,
+  Plus,
+  Trash2,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -14,12 +16,31 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useAppStore } from '@/lib/store'
 import { CLASS_OPTIONS, SUBJECTS_BY_CLASS } from '@/lib/types'
 import { toast } from 'sonner'
 
+// Each class-subject combination row
+interface ClassSubjectEntry {
+  id: string          // unique key for React
+  className: string   // selected class
+  subjects: string[]  // selected subjects for this class
+}
+
 interface TeacherFormProps {
   onSubmitted?: () => void
+}
+
+let entryIdCounter = 0
+function nextEntryId() {
+  return `entry-${++entryIdCounter}`
 }
 
 export function TeacherForm({ onSubmitted }: TeacherFormProps) {
@@ -27,69 +48,81 @@ export function TeacherForm({ onSubmitted }: TeacherFormProps) {
 
   // Form state
   const [name, setName] = useState('')
-  const [selectedClasses, setSelectedClasses] = useState<string[]>([])
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
+  const [classSubjects, setClassSubjects] = useState<ClassSubjectEntry[]>([])
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  // Dynamically compute available subjects based on selected classes
-  const availableSubjects = useMemo(() => {
-    if (selectedClasses.length === 0) return []
-
-    const subjectSet = new Set<string>()
-    selectedClasses.forEach((cls) => {
-      const subjects = SUBJECTS_BY_CLASS[cls] || []
-      subjects.forEach((s) => subjectSet.add(s))
-    })
-
-    return Array.from(subjectSet).sort()
-  }, [selectedClasses])
-
-  // Toggle class selection
-  const toggleClass = (cls: string) => {
-    setSelectedClasses((prev) => {
-      const newSelected = prev.includes(cls)
-        ? prev.filter((c) => c !== cls)
-        : [...prev, cls]
-
-      // Remove subjects that are no longer available
-      if (newSelected.length === 0) {
-        setSelectedSubjects([])
-      } else {
-        const availableSubjectsSet = new Set<string>()
-        newSelected.forEach((c) => {
-          const subjects = SUBJECTS_BY_CLASS[c] || []
-          subjects.forEach((s) => availableSubjectsSet.add(s))
-        })
-        setSelectedSubjects((prevSubjects) =>
-          prevSubjects.filter((s) => availableSubjectsSet.has(s))
-        )
-      }
-
-      return newSelected
-    })
+  // Add a new class-subject row
+  const addEntry = () => {
+    setClassSubjects((prev) => [
+      ...prev,
+      { id: nextEntryId(), className: '', subjects: [] },
+    ])
   }
 
-  // Toggle subject selection
-  const toggleSubject = (subject: string) => {
-    setSelectedSubjects((prev) =>
-      prev.includes(subject)
-        ? prev.filter((s) => s !== subject)
-        : [...prev, subject]
+  // Remove a class-subject row
+  const removeEntry = (entryId: string) => {
+    setClassSubjects((prev) => prev.filter((e) => e.id !== entryId))
+  }
+
+  // Update class for a specific row
+  const updateClass = (entryId: string, className: string) => {
+    setClassSubjects((prev) =>
+      prev.map((e) => {
+        if (e.id !== entryId) return e
+        // When class changes, filter subjects to only those available in the new class
+        const newClassSubjects = SUBJECTS_BY_CLASS[className] || []
+        const filteredSubjects = e.subjects.filter((s) =>
+          newClassSubjects.includes(s)
+        )
+        return { ...e, className, subjects: filteredSubjects }
+      })
     )
   }
 
-  // Select all subjects
-  const selectAllSubjects = () => {
-    setSelectedSubjects(availableSubjects)
+  // Toggle a subject for a specific row
+  const toggleSubject = (entryId: string, subject: string) => {
+    setClassSubjects((prev) =>
+      prev.map((e) => {
+        if (e.id !== entryId) return e
+        const newSubjects = e.subjects.includes(subject)
+          ? e.subjects.filter((s) => s !== subject)
+          : [...e.subjects, subject]
+        return { ...e, subjects: newSubjects }
+      })
+    )
   }
 
-  // Deselect all subjects
-  const deselectAllSubjects = () => {
-    setSelectedSubjects([])
+  // Select all subjects for a specific row
+  const selectAllSubjects = (entryId: string) => {
+    setClassSubjects((prev) =>
+      prev.map((e) => {
+        if (e.id !== entryId) return e
+        return { ...e, subjects: [...(SUBJECTS_BY_CLASS[e.className] || [])] }
+      })
+    )
   }
+
+  // Clear all subjects for a specific row
+  const clearSubjects = (entryId: string) => {
+    setClassSubjects((prev) =>
+      prev.map((e) => {
+        if (e.id !== entryId) return e
+        return { ...e, subjects: [] }
+      })
+    )
+  }
+
+  // Compute the merged lists for API submission
+  const allClasses = [...new Set(classSubjects.map((e) => e.className).filter(Boolean))]
+  const allSubjects = [...new Set(classSubjects.flatMap((e) => e.subjects))]
+
+  // Check for duplicate class selection
+  const hasDuplicateClass = classSubjects.some(
+    (e) => e.className && classSubjects.filter((o) => o.className === e.className).length > 1
+  )
 
   const handleSubmit = async () => {
     // Validation
@@ -97,12 +130,17 @@ export function TeacherForm({ onSubmitted }: TeacherFormProps) {
       toast.error('Teacher name is required')
       return
     }
-    if (selectedClasses.length === 0) {
-      toast.error('Please select at least one class')
+    if (classSubjects.length === 0 || allClasses.length === 0) {
+      toast.error('Please add at least one class-subject combination')
       return
     }
-    if (selectedSubjects.length === 0) {
-      toast.error('Please select at least one subject')
+    if (hasDuplicateClass) {
+      toast.error('Duplicate class selections found. Please combine subjects under one class entry.')
+      return
+    }
+    const hasEmptySubjects = classSubjects.some((e) => e.className && e.subjects.length === 0)
+    if (hasEmptySubjects) {
+      toast.error('Please select at least one subject for each class')
       return
     }
     if (!username.trim()) {
@@ -122,8 +160,9 @@ export function TeacherForm({ onSubmitted }: TeacherFormProps) {
     try {
       const payload = {
         name: name.trim(),
-        classes: selectedClasses,
-        subjects: selectedSubjects,
+        classes: allClasses,
+        subjects: allSubjects,
+        classSubjects: classSubjects.filter(e => e.className).map(e => ({ className: e.className, subjects: e.subjects })),
         username: username.trim(),
         password,
       }
@@ -157,8 +196,7 @@ export function TeacherForm({ onSubmitted }: TeacherFormProps) {
 
   const resetForm = () => {
     setName('')
-    setSelectedClasses([])
-    setSelectedSubjects([])
+    setClassSubjects([])
     setUsername('')
     setPassword('')
     setShowPassword(false)
@@ -170,7 +208,7 @@ export function TeacherForm({ onSubmitted }: TeacherFormProps) {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">Register New Teacher</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Add a new teacher to the academy
+          Add a new teacher with class-subject mapping
         </p>
       </div>
 
@@ -197,123 +235,188 @@ export function TeacherForm({ onSubmitted }: TeacherFormProps) {
 
             <Separator />
 
-            {/* Classes They Teach */}
-            <div className="space-y-3">
-              <Label>Classes They Teach *</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {CLASS_OPTIONS.map((cls) => {
-                  const isSelected = selectedClasses.includes(cls)
-                  return (
-                    <div
-                      key={cls}
-                      className={`flex items-center space-x-2 p-2.5 rounded-lg border transition-colors cursor-pointer ${
-                        isSelected
-                          ? 'bg-[#2F2FE4]/5 border-[#2F2FE4]/30'
-                          : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                      }`}
-                      onClick={() => toggleClass(cls)}
-                    >
-                      <Checkbox
-                        id={`class-${cls}`}
-                        checked={isSelected}
-                        onCheckedChange={() => toggleClass(cls)}
-                      />
-                      <Label
-                        htmlFor={`class-${cls}`}
-                        className="cursor-pointer text-sm"
-                      >
-                        Class {cls}
-                      </Label>
-                    </div>
-                  )
-                })}
-              </div>
-              {selectedClasses.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  <span className="text-xs text-muted-foreground">Selected:</span>
-                  {selectedClasses.map((cls) => (
-                    <Badge key={cls} className="bg-[#2F2FE4] text-white text-xs">
-                      Class {cls}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <Separator />
-
-            {/* Subjects They Teach */}
-            <div className="space-y-3">
+            {/* Class-Subject Mapping */}
+            <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <Label>Subjects They Teach *</Label>
-                {availableSubjects.length > 0 && (
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={selectAllSubjects}
-                      className="text-xs text-[#2F2FE4] h-7 px-2"
-                    >
-                      Select All
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={deselectAllSubjects}
-                      className="text-xs text-muted-foreground h-7 px-2"
-                    >
-                      Clear
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              {availableSubjects.length === 0 ? (
-                <div className="rounded-lg bg-gray-50 border border-gray-200 p-4 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    Select at least one class to see available subjects
+                <div>
+                  <Label className="text-sm font-medium">Class & Subject Mapping *</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Select a class, then choose subjects taught in that class
                   </p>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={addEntry}
+                  className="text-[#2F2FE4] border-[#2F2FE4]/30 hover:bg-[#2F2FE4]/5"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Class
+                </Button>
+              </div>
+
+              {classSubjects.length === 0 ? (
+                <div className="rounded-lg bg-gray-50 border border-dashed border-gray-300 p-6 text-center">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    No classes added yet. Click &quot;Add Class&quot; to start mapping.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={addEntry}
+                    className="text-[#2F2FE4]"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add First Class
+                  </Button>
+                </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {availableSubjects.map((subject) => {
-                    const isSelected = selectedSubjects.includes(subject)
+                <div className="space-y-4">
+                  {classSubjects.map((entry) => {
+                    const availableSubjects = entry.className
+                      ? SUBJECTS_BY_CLASS[entry.className] || []
+                      : []
+
                     return (
-                      <div
-                        key={subject}
-                        className={`flex items-center space-x-2 p-2.5 rounded-lg border transition-colors cursor-pointer ${
-                          isSelected
-                            ? 'bg-emerald-50 border-emerald-300'
-                            : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                        }`}
-                        onClick={() => toggleSubject(subject)}
-                      >
-                        <Checkbox
-                          id={`subject-${subject}`}
-                          checked={isSelected}
-                          onCheckedChange={() => toggleSubject(subject)}
-                        />
-                        <Label
-                          htmlFor={`subject-${subject}`}
-                          className="cursor-pointer text-sm"
-                        >
-                          {subject}
-                        </Label>
-                      </div>
+                      <Card key={entry.id} className="border border-gray-200 rounded-lg">
+                        <CardContent className="p-4">
+                          {/* Class Selection */}
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1 space-y-3">
+                              <div>
+                                <Label className="mb-1.5 block text-sm font-medium">Select Class</Label>
+                                <Select
+                                  value={entry.className}
+                                  onValueChange={(val) => updateClass(entry.id, val)}
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Choose a class..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {CLASS_OPTIONS.map((cls) => (
+                                      <SelectItem key={cls} value={cls}>
+                                        Class {cls}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              {/* Subjects for this class */}
+                              {entry.className && (
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <Label className="text-sm font-medium">
+                                      Subjects for Class {entry.className}
+                                    </Label>
+                                    {availableSubjects.length > 0 && (
+                                      <div className="flex gap-2">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => selectAllSubjects(entry.id)}
+                                          className="text-xs text-[#2F2FE4] h-7 px-2"
+                                        >
+                                          Select All
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => clearSubjects(entry.id)}
+                                          className="text-xs text-muted-foreground h-7 px-2"
+                                        >
+                                          Clear
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                    {availableSubjects.map((subject) => {
+                                      const isSelected = entry.subjects.includes(subject)
+                                      return (
+                                        <div
+                                          key={subject}
+                                          className={`flex items-center space-x-2 p-2.5 rounded-lg border transition-colors cursor-pointer ${
+                                            isSelected
+                                              ? 'bg-emerald-50 border-emerald-300'
+                                              : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                                          }`}
+                                          onClick={() => toggleSubject(entry.id, subject)}
+                                        >
+                                          <Checkbox
+                                            checked={isSelected}
+                                            onCheckedChange={() => toggleSubject(entry.id, subject)}
+                                          />
+                                          <Label className="cursor-pointer text-sm">
+                                            {subject}
+                                          </Label>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                  {entry.subjects.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                      <span className="text-xs text-muted-foreground">Selected:</span>
+                                      {entry.subjects.map((sub) => (
+                                        <Badge
+                                          key={sub}
+                                          variant="secondary"
+                                          className="text-xs bg-emerald-100 text-emerald-700"
+                                        >
+                                          {sub}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Remove button */}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="shrink-0 text-muted-foreground hover:text-destructive h-8 w-8 mt-6"
+                              onClick={() => removeEntry(entry.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
                     )
                   })}
                 </div>
               )}
 
-              {selectedSubjects.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  <span className="text-xs text-muted-foreground">Selected:</span>
-                  {selectedSubjects.map((sub) => (
-                    <Badge key={sub} variant="secondary" className="text-xs bg-emerald-100 text-emerald-700">
-                      {sub}
-                    </Badge>
+              {/* Summary of all selections */}
+              {allClasses.length > 0 && (
+                <div className="rounded-lg bg-[#2F2FE4]/5 border border-[#2F2FE4]/20 p-3">
+                  <p className="text-sm font-medium text-foreground mb-2">Summary</p>
+                  {classSubjects.filter(e => e.className && e.subjects.length > 0).map((entry) => (
+                    <div key={entry.id} className="mb-2 last:mb-0">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Badge className="bg-[#2F2FE4] text-white text-xs">
+                          Class {entry.className}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">→</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 ml-2">
+                        {entry.subjects.map((sub) => (
+                          <Badge key={sub} variant="secondary" className="text-xs bg-emerald-100 text-emerald-700">
+                            {sub}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
+              )}
+
+              {hasDuplicateClass && (
+                <p className="text-xs text-red-500">
+                  ⚠ Duplicate class detected. Combine subjects under one class entry.
+                </p>
               )}
             </div>
 

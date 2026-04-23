@@ -53,10 +53,11 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update Teacher record
-    const teacherUpdateData: { name?: string; classes?: string; subjects?: string } = {};
+    const teacherUpdateData: { name?: string; classes?: string; subjects?: string; classSubjects?: string } = {};
     if (name) teacherUpdateData.name = name;
     if (classes) teacherUpdateData.classes = JSON.stringify(classes);
     if (subjects) teacherUpdateData.subjects = JSON.stringify(subjects);
+    if (body.classSubjects !== undefined) teacherUpdateData.classSubjects = JSON.stringify(body.classSubjects);
 
     if (Object.keys(teacherUpdateData).length > 0) {
       await db.teacher.update({
@@ -82,6 +83,7 @@ export async function PUT(request: NextRequest) {
       ...updatedTeacher,
       classes: JSON.parse(updatedTeacher!.classes),
       subjects: JSON.parse(updatedTeacher!.subjects),
+      classSubjects: JSON.parse(updatedTeacher!.classSubjects),
     });
   } catch (error) {
     console.error('Update teacher error:', error);
@@ -113,6 +115,7 @@ export async function GET(request: NextRequest) {
       ...t,
       classes: JSON.parse(t.classes),
       subjects: JSON.parse(t.subjects),
+      classSubjects: JSON.parse(t.classSubjects),
     }));
 
     // Filter by className if provided
@@ -173,6 +176,7 @@ export async function POST(request: NextRequest) {
         name,
         classes: JSON.stringify(classes || []),
         subjects: JSON.stringify(subjects || []),
+        classSubjects: JSON.stringify(body.classSubjects || []),
       },
       include: {
         salaryPayments: true,

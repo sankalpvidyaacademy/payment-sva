@@ -63,12 +63,7 @@ export async function DELETE(
       );
     }
 
-    // Delete the student (cascading will handle subjectFees and feePayments)
-    await db.student.delete({
-      where: { id },
-    });
-
-    // Delete the associated user
+    // Delete the user first — cascading will handle Student, SubjectFees, FeePayments, MonthlyFeeDistributions
     await db.user.delete({
       where: { id: student.userId },
     });

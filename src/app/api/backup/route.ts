@@ -5,22 +5,24 @@ export async function GET() {
   try {
     const users = await db.user.findMany();
     const students = await db.student.findMany({
-      include: { subjectFees: true },
+      include: { subjectFees: true, monthlyFeeDistributions: true },
     });
     const subjectFees = await db.subjectFee.findMany();
     const feePayments = await db.feePayment.findMany();
+    const monthlyFeeDistributions = await db.monthlyFeeDistribution.findMany();
     const teachers = await db.teacher.findMany();
     const salaryPayments = await db.salaryPayment.findMany();
     const expenses = await db.expense.findMany();
 
     const backup = {
       exportedAt: new Date().toISOString(),
-      version: '1.0',
+      version: '1.1',
       data: {
         users,
         students,
         subjectFees,
         feePayments,
+        monthlyFeeDistributions,
         teachers,
         salaryPayments,
         expenses,
@@ -52,6 +54,7 @@ export async function POST(request: Request) {
     // Clear all tables in reverse dependency order
     await db.salaryPayment.deleteMany();
     await db.feePayment.deleteMany();
+    await db.monthlyFeeDistribution.deleteMany();
     await db.subjectFee.deleteMany();
     await db.expense.deleteMany();
     await db.student.deleteMany();
@@ -85,6 +88,7 @@ export async function POST(request: Request) {
             id: student.id,
             userId: student.userId,
             name: student.name,
+            dob: student.dob ? new Date(student.dob) : null,
             className: student.className,
             subjects: student.subjects,
             totalYearlyFee: student.totalYearlyFee,
@@ -131,7 +135,22 @@ export async function POST(request: Request) {
       }
     }
 
-    // 5. Teachers (depends on User)
+    // 5. MonthlyFeeDistributions (depends on Student)
+    if (data.monthlyFeeDistributions && Array.isArray(data.monthlyFeeDistributions)) {
+      for (const mfd of data.monthlyFeeDistributions) {
+        await db.monthlyFeeDistribution.create({
+          data: {
+            id: mfd.id,
+            studentId: mfd.studentId,
+            month: mfd.month,
+            year: mfd.year,
+            amount: mfd.amount,
+          },
+        });
+      }
+    }
+
+    // 6. Teachers (depends on User)
     if (data.teachers && Array.isArray(data.teachers)) {
       for (const teacher of data.teachers) {
         await db.teacher.create({
@@ -148,7 +167,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // 6. SalaryPayments (depends on Teacher)
+    // 7. SalaryPayments (depends on Teacher)
     if (data.salaryPayments && Array.isArray(data.salaryPayments)) {
       for (const sp of data.salaryPayments) {
         await db.salaryPayment.create({
@@ -168,7 +187,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // 7. Expenses (no dependencies)
+    // 8. Expenses (no dependencies)
     if (data.expenses && Array.isArray(data.expenses)) {
       for (const expense of data.expenses) {
         await db.expense.create({
@@ -191,6 +210,7 @@ export async function POST(request: Request) {
         students: data.students?.length || 0,
         subjectFees: data.subjectFees?.length || 0,
         feePayments: data.feePayments?.length || 0,
+        monthlyFeeDistributions: data.monthlyFeeDistributions?.length || 0,
         teachers: data.teachers?.length || 0,
         salaryPayments: data.salaryPayments?.length || 0,
         expenses: data.expenses?.length || 0,

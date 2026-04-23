@@ -1,5 +1,6 @@
 'use client'
 
+import { useSyncExternalStore } from 'react'
 import { useAppStore } from '@/lib/store'
 import Login from '@/components/login'
 import AppLayout from '@/components/app-layout'
@@ -40,8 +41,24 @@ function AdminViews({ view }: { view: string }) {
   }
 }
 
+// Hydration-safe check: returns false on server, true on client after mount
+const emptySubscribe = () => () => {}
+function useIsHydrated() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,    // client snapshot
+    () => false    // server snapshot
+  )
+}
+
 export default function Home() {
   const { user, adminView, teacherView, studentView } = useAppStore()
+  const hydrated = useIsHydrated()
+
+  // Wait for zustand persist to rehydrate from localStorage to avoid SSR mismatch
+  if (!hydrated) {
+    return null
+  }
 
   if (!user) {
     return <Login />

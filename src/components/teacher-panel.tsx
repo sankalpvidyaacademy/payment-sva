@@ -100,7 +100,16 @@ export default function TeacherPanel() {
             .then((allStudentsRes) => (allStudentsRes.ok ? allStudentsRes.json() : null))
             .then((allStudents: StudentData[] | null) => {
               if (!active || !allStudents) return
-              const matched = allStudents.filter((s) => myTeacher.classes.includes(s.className))
+              const matched = allStudents.filter((s) => {
+                // Find teacher's subject mapping for this student's class
+                const classMapping = myTeacher.classSubjects?.find(
+                  (cs) => cs.className === s.className
+                )
+                if (!classMapping || classMapping.subjects.length === 0) return false
+                // Student must share at least one subject with the teacher in this class
+                const studentSubjects = s.subjects || []
+                return studentSubjects.some((sub) => classMapping.subjects.includes(sub))
+              })
               setStudents(matched)
             })
             .catch(() => {})
@@ -589,24 +598,29 @@ export default function TeacherPanel() {
                 </div>
                 <Separator />
                 <div className="text-sm">
-                  <span className="text-muted-foreground">Classes</span>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {teacher.classes.map((cls) => (
-                      <Badge key={cls} variant="outline" className="text-xs">
-                        {cls}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <Separator />
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Subjects</span>
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {teacher.subjects.map((sub) => (
-                      <Badge key={sub} variant="outline" className="text-xs">
-                        {sub}
-                      </Badge>
-                    ))}
+                  <span className="text-muted-foreground">Class-Subject Mapping</span>
+                  <div className="mt-2 space-y-2">
+                    {(teacher.classSubjects && teacher.classSubjects.length > 0) ? (
+                      teacher.classSubjects.map((cs, idx) => (
+                        <div key={idx} className="rounded-lg border p-2.5 bg-muted/30">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <GraduationCap className="h-3.5 w-3.5 text-brand" />
+                            <Badge variant="outline" className="text-xs font-medium">
+                              Class {cs.className}
+                            </Badge>
+                          </div>
+                          <div className="flex flex-wrap gap-1 ml-5">
+                            {cs.subjects.map((sub) => (
+                              <Badge key={sub} variant="secondary" className="text-xs bg-emerald-100 text-emerald-700">
+                                {sub}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">No class-subject mapping available</p>
+                    )}
                   </div>
                 </div>
               </div>

@@ -72,6 +72,7 @@ export interface TeacherData {
   name: string
   classes: string[]
   subjects: string[]
+  classSubjects: Array<{ className: string; subjects: string[] }>
   createdAt: string
   updatedAt: string
   salaryPayments: SalaryPayment[]
@@ -138,6 +139,7 @@ export interface PendingFeesReport {
       amountPaid: number
       status: string
       colorCode: string
+      paidAt: string | null
     }>
   }>
 }

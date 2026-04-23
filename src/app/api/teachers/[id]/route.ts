@@ -31,6 +31,7 @@ export async function GET(
       ...teacher,
       classes: JSON.parse(teacher.classes),
       subjects: JSON.parse(teacher.subjects),
+      classSubjects: JSON.parse(teacher.classSubjects),
     });
   } catch (error) {
     console.error('Get teacher error:', error);
@@ -60,12 +61,7 @@ export async function DELETE(
       );
     }
 
-    // Delete the teacher (cascading will handle salaryPayments)
-    await db.teacher.delete({
-      where: { id },
-    });
-
-    // Delete the associated user
+    // Delete the user first — cascading will handle Teacher, SalaryPayments
     await db.user.delete({
       where: { id: teacher.userId },
     });

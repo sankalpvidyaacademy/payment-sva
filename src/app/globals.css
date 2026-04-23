@@ -145,3 +145,27 @@
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
   background: oklch(0.4 0.03 275);
 }
+
+/* Safe area padding for bottom nav on iOS */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Thin scrollbar utility */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: oklch(0.75 0.02 265);
+  border-radius: 2px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.55 0.04 265);
+}
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: oklch(0.45 0.03 275);
+}

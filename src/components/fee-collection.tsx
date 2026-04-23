@@ -7,7 +7,6 @@ import {
   IndianRupee,
   CreditCard,
   Printer,
-  Download,
   User,
   GraduationCap,
   CalendarDays,
@@ -244,7 +243,51 @@ export function FeeCollection() {
   }
 
   function printSlip() {
-    window.print()
+    const slipEl = document.getElementById('fee-slip-printable')
+    if (!slipEl) return
+    const printWindow = window.open('', '_blank', 'width=800,height=1000')
+    if (!printWindow) return
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Fee Slip - ${selectedStudent?.name || 'Student'}</title>
+        <style>
+          @page { size: A4; margin: 20mm; }
+          body { font-family: Arial, sans-serif; color: #1a1a1a; margin: 0; padding: 0; }
+          .slip-container { max-width: 210mm; margin: 0 auto; }
+          .header { text-align: center; border-bottom: 3px double #2F2FE4; padding-bottom: 12px; margin-bottom: 16px; }
+          .header h1 { margin: 0; font-size: 22px; color: #2F2FE4; letter-spacing: 1px; }
+          .header p { margin: 4px 0 0; font-size: 12px; color: #666; }
+          .section { margin-bottom: 16px; }
+          .section-title { font-size: 13px; font-weight: 700; color: #2F2FE4; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 8px; }
+          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; font-size: 13px; }
+          .info-grid .label { color: #666; }
+          .info-grid .value { font-weight: 600; }
+          .payment-box { background: #f0f0ff; border: 1px solid #d0d0ee; border-radius: 8px; padding: 12px; margin: 12px 0; }
+          .payment-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; }
+          .payment-row.total { font-size: 18px; font-weight: 700; color: #2F2FE4; border-top: 2px solid #2F2FE4; padding-top: 6px; margin-top: 6px; }
+          .payment-row.remaining { font-size: 16px; font-weight: 600; color: #dc2626; }
+          table.monthly-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
+          table.monthly-table th, table.monthly-table td { border: 1px solid #e5e7eb; padding: 4px 8px; text-align: center; }
+          table.monthly-table th { background: #f3f4f6; font-weight: 600; }
+          table.monthly-table td.paid { background: #dcfce7; color: #166534; }
+          table.monthly-table td.unpaid { background: #fee2e2; color: #991b1b; }
+          .footer { margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 11px; color: #888; }
+          .footer .signature { text-align: center; }
+          .footer .signature .line { border-top: 1px solid #333; width: 160px; margin-bottom: 4px; }
+          .footer .signature .title { font-weight: 600; color: #333; font-size: 12px; }
+          @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+        </style>
+      </head>
+      <body>
+        ${slipEl.innerHTML}
+      </body>
+      </html>
+    `)
+    printWindow.document.close()
+    printWindow.focus()
+    setTimeout(() => { printWindow.print() }, 300)
   }
 
   const currentMonthFee = selectedStudent
@@ -256,6 +299,10 @@ export function FeeCollection() {
   const currentMonthDue = selectedStudent
     ? currentMonthFee - currentMonthPaid
     : 0
+
+  // Get all monthly payments for the fee slip breakdown
+  const sessionYear = getSessionYear()
+  const studentPayments = selectedStudent?.feePayments || []
 
   return (
     <div className="space-y-6">
@@ -599,17 +646,16 @@ export function FeeCollection() {
                     onChange={(e) => setAmountToPay(e.target.value)}
                     className="pl-9"
                     min="1"
-                    max={getRemaining(selectedStudent)}
                   />
                 </div>
-                {amountToPay && parseFloat(amountToPay) > getRemaining(selectedStudent) && (
-                  <p className="text-xs text-red-500 mt-1">
-                    Amount exceeds remaining balance
+                {amountToPay && parseFloat(amountToPay) > currentMonthDue && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    Extra payment will be adjusted in the next month
                   </p>
                 )}
               </div>
 
-              {/* Payment Mode */}
+              {/* Payment Mode - Only Online / Offline */}
               <div>
                 <Label className="mb-1.5 block text-sm font-medium">
                   Payment Mode
@@ -619,7 +665,7 @@ export function FeeCollection() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Offline">Offline (Cash/UPI)</SelectItem>
+                    <SelectItem value="Offline">Offline</SelectItem>
                     <SelectItem value="Online">Online</SelectItem>
                   </SelectContent>
                 </Select>
@@ -640,8 +686,7 @@ export function FeeCollection() {
               disabled={
                 paying ||
                 !amountToPay ||
-                parseFloat(amountToPay) <= 0 ||
-                (selectedStudent && parseFloat(amountToPay) > getRemaining(selectedStudent))
+                parseFloat(amountToPay) <= 0
               }
             >
               {paying ? (
@@ -683,9 +728,9 @@ export function FeeCollection() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Fee Slip Dialog */}
+      {/* Fee Slip Dialog - A4 Print-Ready */}
       <Dialog open={slipOpen} onOpenChange={setSlipOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -695,61 +740,238 @@ export function FeeCollection() {
           </DialogHeader>
           {lastPayment && selectedStudent && (
             <div className="space-y-4">
+              {/* A4 Print-Ready Fee Slip (hidden in dialog, used for printing) */}
+              <div id="fee-slip-printable" className="slip-container" style={{ display: 'none' }}>
+                {/* Header */}
+                <div className="header">
+                  <h1>SANKALP VIDYA ACADEMY</h1>
+                  <p>Fee Payment Receipt</p>
+                </div>
+
+                {/* Student Details */}
+                <div className="section">
+                  <div className="section-title">Student Details</div>
+                  <div className="info-grid">
+                    <div><span className="label">Name:</span></div>
+                    <div><span className="value">{selectedStudent.name}</span></div>
+                    <div><span className="label">Class:</span></div>
+                    <div><span className="value">{selectedStudent.className}</span></div>
+                    <div><span className="label">Subjects:</span></div>
+                    <div><span className="value">{selectedStudent.subjects?.join(', ') || '-'}</span></div>
+                    <div><span className="label">DOB:</span></div>
+                    <div><span className="value">{selectedStudent.dob ? new Date(selectedStudent.dob).toLocaleDateString('en-IN') : 'N/A'}</span></div>
+                  </div>
+                </div>
+
+                {/* Payment Details */}
+                <div className="section">
+                  <div className="section-title">Payment Details</div>
+                  <div className="payment-box">
+                    <div className="payment-row">
+                      <span>Total Yearly Fee:</span>
+                      <span>{formatINR(selectedStudent.totalYearlyFee)}</span>
+                    </div>
+                    <div className="payment-row remaining">
+                      <span>Remaining Fee after payment:</span>
+                      <span>{formatINR(getRemaining(selectedStudent))}</span>
+                    </div>
+                    <div className="payment-row">
+                      <span>Payment Date:</span>
+                      <span>{lastPayment.paidAt ? new Date(lastPayment.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : 'N/A'}</span>
+                    </div>
+                    <div className="payment-row">
+                      <span>Payment Mode:</span>
+                      <span>{lastPayment.paymentMode}</span>
+                    </div>
+                    <div className="payment-row total">
+                      <span>Amount Paid:</span>
+                      <span>{formatINR(lastPayment.amountPaid)}</span>
+                    </div>
+                    <div className="payment-row">
+                      <span>Slip No:</span>
+                      <span>{lastPayment.slipNumber}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Monthly Breakdown */}
+                <div className="section">
+                  <div className="section-title">Monthly Breakdown</div>
+                  <table className="monthly-table">
+                    <thead>
+                      <tr>
+                        <th>Month</th>
+                        <th>Fee</th>
+                        <th>Paid</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {SESSION_MONTHS.map((m) => {
+                        const yr = m >= 4 ? sessionYear : sessionYear + 1
+                        const payment = studentPayments.find((p) => p.month === m && p.year === yr)
+                        const fee = getMonthFeeAmount(selectedStudent, m, yr)
+                        const paid = payment ? payment.amountPaid : 0
+                        const isPaid = paid >= fee && paid > 0
+                        return (
+                          <tr key={m}>
+                            <td>{MONTH_SHORT[m]} {yr}</td>
+                            <td>{formatINR(fee)}</td>
+                            <td>{paid > 0 ? formatINR(paid) : '-'}</td>
+                            <td className={isPaid ? 'paid' : (paid > 0 ? 'unpaid' : 'unpaid')}>
+                              {paid === 0 ? 'Unpaid' : isPaid ? 'Paid' : 'Partial'}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Footer */}
+                <div className="footer">
+                  <div>
+                    <p>This is a system generated receipt.</p>
+                    <p>Generated on {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  </div>
+                  <div className="signature">
+                    <div className="line"></div>
+                    <div className="title">Director</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dialog-visible Fee Slip (screen version) */}
               <Card id="fee-slip">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-center text-lg">
-                    🏫 Sankalp Vidya Academy
+                <CardHeader className="pb-3 text-center">
+                  <CardTitle className="text-xl text-[#2F2FE4]">
+                    Sankalp Vidya Academy
                   </CardTitle>
-                  <p className="text-center text-sm text-muted-foreground">
-                    Fee Payment Slip
+                  <p className="text-sm text-muted-foreground font-medium">
+                    Fee Payment Receipt
                   </p>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-4">
                   <Separator />
-                  <div className="grid grid-cols-2 gap-y-3 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Slip No:</span>
-                      <p className="font-semibold">{lastPayment.slipNumber}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Date:</span>
-                      <p className="font-semibold">
-                        {lastPayment.paidAt
-                          ? new Date(lastPayment.paidAt).toLocaleDateString('en-IN')
-                          : 'N/A'}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Student:</span>
-                      <p className="font-semibold">{selectedStudent.name}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Class:</span>
-                      <p className="font-semibold">{selectedStudent.className}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Month/Year:</span>
-                      <p className="font-semibold">
-                        {MONTH_NAMES[lastPayment.month]} {lastPayment.year}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Mode:</span>
-                      <p className="font-semibold">{lastPayment.paymentMode}</p>
+
+                  {/* Student Details */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-[#2F2FE4] uppercase tracking-wide mb-2">Student Details</h4>
+                    <div className="grid grid-cols-2 gap-y-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Name:</span>
+                        <p className="font-semibold">{selectedStudent.name}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Class:</span>
+                        <p className="font-semibold">{selectedStudent.className}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Subjects:</span>
+                        <p className="font-semibold text-xs">{selectedStudent.subjects?.join(', ') || '-'}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">DOB:</span>
+                        <p className="font-semibold">
+                          {selectedStudent.dob ? new Date(selectedStudent.dob).toLocaleDateString('en-IN') : 'N/A'}
+                        </p>
+                      </div>
                     </div>
                   </div>
+
                   <Separator />
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Amount Paid:</span>
-                    <span className="text-xl font-bold text-green-600">
-                      {formatINR(lastPayment.amountPaid)}
-                    </span>
+
+                  {/* Payment Details */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-[#2F2FE4] uppercase tracking-wide mb-2">Payment Details</h4>
+                    <div className="rounded-lg bg-[#2F2FE4]/5 border border-[#2F2FE4]/20 p-3 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Total Yearly Fee:</span>
+                        <span className="font-semibold">{formatINR(selectedStudent.totalYearlyFee)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Remaining Fee:</span>
+                        <span className="font-semibold text-red-600">{formatINR(getRemaining(selectedStudent))}</span>
+                      </div>
+                      <Separator />
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Payment Date:</span>
+                        <span className="font-semibold">
+                          {lastPayment.paidAt
+                            ? new Date(lastPayment.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+                            : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Payment Mode:</span>
+                        <span className="font-semibold">{lastPayment.paymentMode}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Amount Paid:</span>
+                        <span className="text-xl font-bold text-green-600">{formatINR(lastPayment.amountPaid)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Slip No: {lastPayment.slipNumber}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">Remaining Balance:</span>
-                    <span className="font-semibold text-red-600">
-                      {formatINR(getRemaining(selectedStudent))}
-                    </span>
+
+                  <Separator />
+
+                  {/* Monthly Breakdown */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-[#2F2FE4] uppercase tracking-wide mb-2">Monthly Breakdown</h4>
+                    <div className="max-h-48 overflow-y-auto custom-scrollbar">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs">Month</TableHead>
+                            <TableHead className="text-xs text-right">Fee</TableHead>
+                            <TableHead className="text-xs text-right">Paid</TableHead>
+                            <TableHead className="text-xs text-center">Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {SESSION_MONTHS.map((m) => {
+                            const yr = m >= 4 ? sessionYear : sessionYear + 1
+                            const payment = studentPayments.find((p) => p.month === m && p.year === yr)
+                            const fee = getMonthFeeAmount(selectedStudent, m, yr)
+                            const paid = payment ? payment.amountPaid : 0
+                            const isPaid = paid >= fee && paid > 0
+                            return (
+                              <TableRow key={m}>
+                                <TableCell className="text-xs py-1">{MONTH_SHORT[m]}</TableCell>
+                                <TableCell className="text-xs py-1 text-right">{formatINR(fee)}</TableCell>
+                                <TableCell className="text-xs py-1 text-right">{paid > 0 ? formatINR(paid) : '-'}</TableCell>
+                                <TableCell className="text-xs py-1 text-center">
+                                  <Badge
+                                    variant="outline"
+                                    className={
+                                      isPaid
+                                        ? 'bg-green-100 text-green-700 border-green-200'
+                                        : paid > 0
+                                        ? 'bg-red-100 text-red-700 border-red-200'
+                                        : 'bg-gray-100 text-gray-500 border-gray-200'
+                                    }
+                                  >
+                                    {paid === 0 ? 'Unpaid' : isPaid ? 'Paid' : 'Partial'}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex justify-between items-end pt-2 text-xs text-muted-foreground">
+                    <p>This is a system generated receipt</p>
+                    <div className="text-center">
+                      <div className="border-t border-foreground/30 w-32 mb-1"></div>
+                      <p className="font-semibold text-foreground">Director</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -760,14 +982,13 @@ export function FeeCollection() {
                   onClick={printSlip}
                 >
                   <Printer className="h-4 w-4 mr-1" />
-                  Print
+                  Print Slip
                 </Button>
                 <Button
                   variant="outline"
                   className="flex-1"
                   onClick={() => setSlipOpen(false)}
                 >
-                  <Download className="h-4 w-4 mr-1" />
                   Close
                 </Button>
               </div>

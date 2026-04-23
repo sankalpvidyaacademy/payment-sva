@@ -225,27 +225,26 @@ async function getPendingFeesReport(searchParams: URLSearchParams) {
       const distribution = student.monthlyFeeDistributions.find(
         (d) => d.month === month && d.year === year
       );
-      const amountDue = distribution ? distribution.amount : student.monthlyFee;
-      const amountPaid = payment ? payment.amountPaid : 0;
+      const baseDue = distribution ? distribution.amount : student.monthlyFee;
+      
+      // If a FeePayment record exists with paidAt set (actual payment), use its amountDue
+      // which includes any carry-forward adjustments
+      const amountDue = (payment && payment.paidAt) ? payment.amountDue : baseDue;
+      const amountPaid = payment && payment.paidAt ? payment.amountPaid : 0;
+      const paidAt = payment && payment.paidAt ? payment.paidAt : null;
 
       let status: string;
       let colorCode: string;
 
       if (amountPaid === 0) {
         status = 'unpaid';
-        colorCode = 'red'; // Unpaid
-      } else if (amountPaid >= amountDue && amountPaid > amountDue) {
-        status = 'advance';
-        colorCode = 'darkgreen'; // Paid more than due
+        colorCode = 'red';
       } else if (amountPaid >= amountDue) {
         status = 'paid';
-        colorCode = 'green'; // Fully paid
-      } else if (amountPaid > 0 && amountPaid < amountDue) {
-        status = 'partial';
-        colorCode = 'lightgreen'; // Partially paid
+        colorCode = 'green';
       } else {
-        status = 'unpaid';
-        colorCode = 'red';
+        status = 'partial';
+        colorCode = 'red'; // Treat partial as unpaid (red) per PRD
       }
 
       monthlyData[key] = {
@@ -255,6 +254,7 @@ async function getPendingFeesReport(searchParams: URLSearchParams) {
         amountPaid,
         status,
         colorCode,
+        paidAt: paidAt ? paidAt.toISOString() : null,
       };
     }
 
