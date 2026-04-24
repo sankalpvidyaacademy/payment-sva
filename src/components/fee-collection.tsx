@@ -60,6 +60,7 @@ import {
   SESSION_MONTHS,
 } from '@/lib/types'
 import type { StudentData, FeePayment } from '@/lib/types'
+import { useAppStore } from '@/lib/store'
 
 // Indian number formatting
 function formatINR(amount: number): string {
@@ -128,6 +129,8 @@ export function FeeCollection() {
   const [paymentHistory, setPaymentHistory] = useState<FeePayment[]>([])
   const [historyStudent, setHistoryStudent] = useState<StudentData | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
+
+  const { triggerRefresh } = useAppStore()
 
   const fetchStudents = useCallback(async () => {
     setLoading(true)
@@ -219,6 +222,7 @@ export function FeeCollection() {
       setConfirmOpen(false)
       setSlipOpen(true)
       fetchStudents()
+      triggerRefresh()
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Payment failed')
     } finally {
@@ -297,7 +301,10 @@ export function FeeCollection() {
     ? getMonthPaid(selectedStudent, parseInt(payingMonth), parseInt(payingYear))
     : 0
   const currentMonthDue = selectedStudent
-    ? currentMonthFee - currentMonthPaid
+    ? (() => {
+        const { adjustedDue } = getAdjustedMonthData(selectedStudent, parseInt(payingMonth), parseInt(payingYear))
+        return adjustedDue - currentMonthPaid
+      })()
     : 0
 
   // Get all monthly payments for the fee slip breakdown
@@ -323,7 +330,7 @@ export function FeeCollection() {
       }
     }
 
-    const adjustedDue = payment && payment.paidAt ? payment.amountDue : Math.max(0, baseFee + carryForward)
+    const adjustedDue = payment && payment.paidAt ? payment.amountDue : Math.max(0, baseFee - carryForward)
     const paid = payment && payment.paidAt ? payment.amountPaid : 0
 
     return { adjustedDue, paid, baseFee }
@@ -798,7 +805,7 @@ export function FeeCollection() {
                     </div>
                     <div className="payment-row remaining">
                       <span>Remaining Fee after payment:</span>
-                      <span>{formatINR(getRemaining(selectedStudent))}</span>
+                      <span>{formatINR(Math.max(0, selectedStudent.totalYearlyFee - getTotalPaid(selectedStudent) - lastPayment.amountPaid))}</span>
                     </div>
                     <div className="payment-row">
                       <span>Payment Date:</span>
@@ -925,7 +932,7 @@ export function FeeCollection() {
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Remaining Fee:</span>
-                        <span className="font-semibold text-red-600">{formatINR(getRemaining(selectedStudent))}</span>
+                        <span className="font-semibold text-red-600">{formatINR(Math.max(0, selectedStudent.totalYearlyFee - getTotalPaid(selectedStudent) - lastPayment.amountPaid))}</span>
                       </div>
                       <Separator />
                       <div className="flex justify-between text-sm">
@@ -976,7 +983,7 @@ export function FeeCollection() {
                                   <TableCell className="text-xs py-1">{MONTH_SHORT[m]}</TableCell>
                                   <TableCell className="text-xs py-1 text-right">-</TableCell>
                                   <TableCell className="text-xs py-1 text-right">-</TableCell>
-                                  <TableCell className="text-xs py-1 text-center">-</TableCell>
+                                  <TableCell className="text-xs py-1 text-center"></TableCell>
                                 </TableRow>
                               )
                             }

@@ -13,6 +13,7 @@ import {
   CalendarDays,
   ChevronLeft,
   Receipt,
+  Printer,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -123,6 +124,10 @@ export function SalaryManagement() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [successOpen, setSuccessOpen] = useState(false)
   const [lastSalaryPayment, setLastSalaryPayment] = useState<SalaryPayment | null>(null)
+
+  // View past slip state
+  const [viewSlipOpen, setViewSlipOpen] = useState(false)
+  const [viewSlipPayment, setViewSlipPayment] = useState<SalaryPayment | null>(null)
 
   const fetchAllData = useCallback(async () => {
     setLoading(true)
@@ -237,6 +242,97 @@ export function SalaryManagement() {
 
   async function handlePaySalary() {
     setConfirmOpen(true)
+  }
+
+  function printSalarySlip() {
+    const slipEl = document.getElementById('salary-slip-printable')
+    if (!slipEl) return
+    const printWindow = window.open('', '_blank', 'width=800,height=1000')
+    if (!printWindow) return
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Salary Slip - ${selectedCalc?.teacher.name || 'Teacher'}</title>
+        <style>
+          @page { size: A4; margin: 20mm; }
+          body { font-family: Arial, sans-serif; color: #1a1a1a; margin: 0; padding: 0; }
+          .slip-container { max-width: 210mm; margin: 0 auto; }
+          .header { text-align: center; border-bottom: 3px double #2F2FE4; padding-bottom: 12px; margin-bottom: 16px; }
+          .header h1 { margin: 0; font-size: 22px; color: #2F2FE4; letter-spacing: 1px; }
+          .header p { margin: 4px 0 0; font-size: 12px; color: #666; }
+          .section { margin-bottom: 16px; }
+          .section-title { font-size: 13px; font-weight: 700; color: #2F2FE4; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 8px; }
+          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; font-size: 13px; }
+          .info-grid .label { color: #666; }
+          .info-grid .value { font-weight: 600; }
+          .payment-box { background: #f0f0ff; border: 1px solid #d0d0ee; border-radius: 8px; padding: 12px; margin: 12px 0; }
+          .payment-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; }
+          .payment-row.total { font-size: 18px; font-weight: 700; color: #2F2FE4; border-top: 2px solid #2F2FE4; padding-top: 6px; margin-top: 6px; }
+          .payment-row.remaining { font-size: 16px; font-weight: 600; color: #dc2626; }
+          .footer { margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 11px; color: #888; }
+          .footer .signature { text-align: center; }
+          .footer .signature .line { border-top: 1px solid #333; width: 160px; margin-bottom: 4px; }
+          .footer .signature .title { font-weight: 600; color: #333; font-size: 12px; }
+          @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+        </style>
+      </head>
+      <body>
+        ${slipEl.innerHTML}
+      </body>
+      </html>
+    `)
+    printWindow.document.close()
+    printWindow.focus()
+    setTimeout(() => { printWindow.print() }, 300)
+  }
+
+  function handleViewSlip(sp: SalaryPayment) {
+    setViewSlipPayment(sp)
+    setViewSlipOpen(true)
+  }
+
+  function printViewSalarySlip() {
+    const slipEl = document.getElementById('salary-slip-view-printable')
+    if (!slipEl) return
+    const printWindow = window.open('', '_blank', 'width=800,height=1000')
+    if (!printWindow) return
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Salary Slip - ${selectedCalc?.teacher.name || 'Teacher'}</title>
+        <style>
+          @page { size: A4; margin: 20mm; }
+          body { font-family: Arial, sans-serif; color: #1a1a1a; margin: 0; padding: 0; }
+          .slip-container { max-width: 210mm; margin: 0 auto; }
+          .header { text-align: center; border-bottom: 3px double #2F2FE4; padding-bottom: 12px; margin-bottom: 16px; }
+          .header h1 { margin: 0; font-size: 22px; color: #2F2FE4; letter-spacing: 1px; }
+          .header p { margin: 4px 0 0; font-size: 12px; color: #666; }
+          .section { margin-bottom: 16px; }
+          .section-title { font-size: 13px; font-weight: 700; color: #2F2FE4; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; margin-bottom: 8px; }
+          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; font-size: 13px; }
+          .info-grid .label { color: #666; }
+          .info-grid .value { font-weight: 600; }
+          .payment-box { background: #f0f0ff; border: 1px solid #d0d0ee; border-radius: 8px; padding: 12px; margin: 12px 0; }
+          .payment-row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 4px; }
+          .payment-row.total { font-size: 18px; font-weight: 700; color: #2F2FE4; border-top: 2px solid #2F2FE4; padding-top: 6px; margin-top: 6px; }
+          .payment-row.remaining { font-size: 16px; font-weight: 600; color: #dc2626; }
+          .footer { margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 11px; color: #888; }
+          .footer .signature { text-align: center; }
+          .footer .signature .line { border-top: 1px solid #333; width: 160px; margin-bottom: 4px; }
+          .footer .signature .title { font-weight: 600; color: #333; font-size: 12px; }
+          @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+        </style>
+      </head>
+      <body>
+        ${slipEl.innerHTML}
+      </body>
+      </html>
+    `)
+    printWindow.document.close()
+    printWindow.focus()
+    setTimeout(() => { printWindow.print() }, 300)
   }
 
   async function confirmPaySalary() {
@@ -629,6 +725,7 @@ export function SalaryManagement() {
                           <TableHead>Paid On</TableHead>
                           <TableHead>Earning</TableHead>
                           <TableHead>Received</TableHead>
+                          <TableHead className="text-right">Slip</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -646,6 +743,16 @@ export function SalaryManagement() {
                             </TableCell>
                             <TableCell>{formatINR(sp.totalYearlyEarning)}</TableCell>
                             <TableCell>{formatINR(sp.totalReceivedFees)}</TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleViewSlip(sp)}
+                              >
+                                <Receipt className="h-4 w-4 mr-1" />
+                                View Slip
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -672,6 +779,16 @@ export function SalaryManagement() {
                             <span className="font-semibold text-green-600">
                               {formatINR(sp.amount)}
                             </span>
+                          </div>
+                          <div className="mt-2 flex justify-end">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleViewSlip(sp)}
+                            >
+                              <Receipt className="h-3.5 w-3.5 mr-1" />
+                              View Slip
+                            </Button>
                           </div>
                         </CardContent>
                       </Card>
@@ -804,9 +921,9 @@ export function SalaryManagement() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Success Dialog */}
+      {/* Success Dialog - Salary Slip */}
       <Dialog open={successOpen} onOpenChange={setSuccessOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -818,49 +935,377 @@ export function SalaryManagement() {
           </DialogHeader>
           {lastSalaryPayment && selectedCalc && (
             <div className="space-y-4">
-              <Card>
-                <CardContent className="p-4 space-y-3">
-                  <div className="text-center mb-3">
-                    <p className="font-semibold text-lg">
-                      {selectedCalc.teacher.name}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {MONTH_NAMES[lastSalaryPayment.month]} {lastSalaryPayment.year}
-                    </p>
+              {/* A4 Print-Ready Salary Slip (hidden in dialog, used for printing) */}
+              <div id="salary-slip-printable" className="slip-container" style={{ display: 'none' }}>
+                {/* Header */}
+                <div className="header">
+                  <h1>SANKALP VIDYA ACADEMY</h1>
+                  <p>Salary Payment Receipt</p>
+                </div>
+
+                {/* Teacher Details */}
+                <div className="section">
+                  <div className="section-title">Teacher Details</div>
+                  <div className="info-grid">
+                    <div><span className="label">Name:</span></div>
+                    <div><span className="value">{selectedCalc.teacher.name}</span></div>
+                    <div><span className="label">Subjects:</span></div>
+                    <div><span className="value">{selectedCalc.teacher.subjects.join(', ')}</span></div>
+                    <div><span className="label">Classes:</span></div>
+                    <div><span className="value">{selectedCalc.teacher.classes.join(', ')}</span></div>
                   </div>
+                </div>
+
+                {/* Earning Details */}
+                <div className="section">
+                  <div className="section-title">Earning Details</div>
+                  <div className="payment-box">
+                    <div className="payment-row">
+                      <span>Total Yearly Earning:</span>
+                      <span>{formatINR(lastSalaryPayment.totalYearlyEarning)}</span>
+                    </div>
+                    <div className="payment-row">
+                      <span>Received Salary (Total Paid):</span>
+                      <span>{formatINR(lastSalaryPayment.totalReceivedFees + lastSalaryPayment.amount)}</span>
+                    </div>
+                    <div className="payment-row remaining">
+                      <span>Remaining Salary:</span>
+                      <span>{formatINR(Math.max(0, lastSalaryPayment.totalYearlyEarning - lastSalaryPayment.totalReceivedFees - lastSalaryPayment.amount))}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Current Payment Details */}
+                <div className="section">
+                  <div className="section-title">Current Payment</div>
+                  <div className="payment-box">
+                    <div className="payment-row total">
+                      <span>Current Month Salary:</span>
+                      <span>{formatINR(lastSalaryPayment.amount)}</span>
+                    </div>
+                    <div className="payment-row">
+                      <span>Month:</span>
+                      <span>{MONTH_NAMES[lastSalaryPayment.month]} {lastSalaryPayment.year}</span>
+                    </div>
+                    <div className="payment-row">
+                      <span>Payment Date:</span>
+                      <span>{lastSalaryPayment.paidAt ? new Date(lastSalaryPayment.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : 'N/A'}</span>
+                    </div>
+                    <div className="payment-row">
+                      <span>Payment Mode:</span>
+                      <span>{lastSalaryPayment.paymentMode}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="footer">
+                  <div>
+                    <p>This is a system generated receipt.</p>
+                    <p>Generated on {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  </div>
+                  <div className="signature">
+                    <div className="line"></div>
+                    <div className="title">Director</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dialog-visible Salary Slip (screen version) */}
+              <Card>
+                <CardHeader className="pb-3 text-center">
+                  <CardTitle className="text-xl text-[#2F2FE4]">
+                    Sankalp Vidya Academy
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground font-medium">
+                    Salary Payment Receipt
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   <Separator />
-                  <div className="grid grid-cols-2 gap-y-3 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Amount:</span>
-                      <p className="font-bold text-green-600 text-lg">
-                        {formatINR(lastSalaryPayment.amount)}
-                      </p>
+
+                  {/* Teacher Details */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-[#2F2FE4] uppercase tracking-wide mb-2">Teacher Details</h4>
+                    <div className="grid grid-cols-2 gap-y-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Name:</span>
+                        <p className="font-semibold">{selectedCalc.teacher.name}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Subjects:</span>
+                        <p className="font-semibold text-xs">{selectedCalc.teacher.subjects.join(', ')}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">Classes:</span>
+                        <p className="font-semibold">{selectedCalc.teacher.classes.join(', ')}</p>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Mode:</span>
-                      <p className="font-semibold">{lastSalaryPayment.paymentMode}</p>
+                  </div>
+
+                  <Separator />
+
+                  {/* Earning Details */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-[#2F2FE4] uppercase tracking-wide mb-2">Earning Details</h4>
+                    <div className="rounded-lg bg-[#2F2FE4]/5 border border-[#2F2FE4]/20 p-3 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Total Yearly Earning:</span>
+                        <span className="font-semibold">{formatINR(lastSalaryPayment.totalYearlyEarning)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Received Salary (Total Paid):</span>
+                        <span className="font-semibold text-green-600">{formatINR(lastSalaryPayment.totalReceivedFees + lastSalaryPayment.amount)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Remaining Salary:</span>
+                        <span className="font-semibold text-red-600">{formatINR(Math.max(0, lastSalaryPayment.totalYearlyEarning - lastSalaryPayment.totalReceivedFees - lastSalaryPayment.amount))}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground">Paid On:</span>
-                      <p className="font-semibold">
-                        {new Date(lastSalaryPayment.paidAt).toLocaleDateString('en-IN')}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Yearly Earning:</span>
-                      <p className="font-semibold">
-                        {formatINR(lastSalaryPayment.totalYearlyEarning)}
-                      </p>
+                  </div>
+
+                  <Separator />
+
+                  {/* Current Payment */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-[#2F2FE4] uppercase tracking-wide mb-2">Current Payment</h4>
+                    <div className="rounded-lg bg-green-50 border border-green-200 p-3 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Current Month Salary:</span>
+                        <span className="text-xl font-bold text-green-600">{formatINR(lastSalaryPayment.amount)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Month:</span>
+                        <span className="font-semibold">{MONTH_NAMES[lastSalaryPayment.month]} {lastSalaryPayment.year}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Payment Date:</span>
+                        <span className="font-semibold">
+                          {lastSalaryPayment.paidAt
+                            ? new Date(lastSalaryPayment.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+                            : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Payment Mode:</span>
+                        <span className="font-semibold">{lastSalaryPayment.paymentMode}</span>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-              <Button
-                className="w-full bg-[#2F2FE4] hover:bg-[#2525c0]"
-                onClick={() => setSuccessOpen(false)}
-              >
-                Done
-              </Button>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setSuccessOpen(false)}
+                >
+                  Done
+                </Button>
+                <Button
+                  className="flex-1 bg-[#2F2FE4] hover:bg-[#2525c0]"
+                  onClick={printSalarySlip}
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  Print Salary Slip
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* View Past Salary Slip Dialog */}
+      <Dialog open={viewSlipOpen} onOpenChange={setViewSlipOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-[#2F2FE4]" />
+              Salary Payment Receipt
+            </DialogTitle>
+            <DialogDescription>
+              Salary slip for past payment
+            </DialogDescription>
+          </DialogHeader>
+          {viewSlipPayment && selectedCalc && (
+            <div className="space-y-4">
+              {/* A4 Print-Ready Salary Slip (hidden in dialog, used for printing) */}
+              <div id="salary-slip-view-printable" className="slip-container" style={{ display: 'none' }}>
+                {/* Header */}
+                <div className="header">
+                  <h1>SANKALP VIDYA ACADEMY</h1>
+                  <p>Salary Payment Receipt</p>
+                </div>
+
+                {/* Teacher Details */}
+                <div className="section">
+                  <div className="section-title">Teacher Details</div>
+                  <div className="info-grid">
+                    <div><span className="label">Name:</span></div>
+                    <div><span className="value">{selectedCalc.teacher.name}</span></div>
+                    <div><span className="label">Subjects:</span></div>
+                    <div><span className="value">{selectedCalc.teacher.subjects.join(', ')}</span></div>
+                    <div><span className="label">Classes:</span></div>
+                    <div><span className="value">{selectedCalc.teacher.classes.join(', ')}</span></div>
+                  </div>
+                </div>
+
+                {/* Earning Details */}
+                <div className="section">
+                  <div className="section-title">Earning Details</div>
+                  <div className="payment-box">
+                    <div className="payment-row">
+                      <span>Total Yearly Earning:</span>
+                      <span>{formatINR(viewSlipPayment.totalYearlyEarning)}</span>
+                    </div>
+                    <div className="payment-row">
+                      <span>Received Salary (Total Paid):</span>
+                      <span>{formatINR(viewSlipPayment.totalReceivedFees + viewSlipPayment.amount)}</span>
+                    </div>
+                    <div className="payment-row remaining">
+                      <span>Remaining Salary:</span>
+                      <span>{formatINR(Math.max(0, viewSlipPayment.totalYearlyEarning - viewSlipPayment.totalReceivedFees - viewSlipPayment.amount))}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Current Payment Details */}
+                <div className="section">
+                  <div className="section-title">Current Payment</div>
+                  <div className="payment-box">
+                    <div className="payment-row total">
+                      <span>Current Month Salary:</span>
+                      <span>{formatINR(viewSlipPayment.amount)}</span>
+                    </div>
+                    <div className="payment-row">
+                      <span>Month:</span>
+                      <span>{MONTH_NAMES[viewSlipPayment.month]} {viewSlipPayment.year}</span>
+                    </div>
+                    <div className="payment-row">
+                      <span>Payment Date:</span>
+                      <span>{viewSlipPayment.paidAt ? new Date(viewSlipPayment.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : 'N/A'}</span>
+                    </div>
+                    <div className="payment-row">
+                      <span>Payment Mode:</span>
+                      <span>{viewSlipPayment.paymentMode}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="footer">
+                  <div>
+                    <p>This is a system generated receipt.</p>
+                    <p>Generated on {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  </div>
+                  <div className="signature">
+                    <div className="line"></div>
+                    <div className="title">Director</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dialog-visible Salary Slip (screen version) */}
+              <Card>
+                <CardHeader className="pb-3 text-center">
+                  <CardTitle className="text-xl text-[#2F2FE4]">
+                    Sankalp Vidya Academy
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground font-medium">
+                    Salary Payment Receipt
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Separator />
+
+                  {/* Teacher Details */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-[#2F2FE4] uppercase tracking-wide mb-2">Teacher Details</h4>
+                    <div className="grid grid-cols-2 gap-y-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Name:</span>
+                        <p className="font-semibold">{selectedCalc.teacher.name}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Subjects:</span>
+                        <p className="font-semibold text-xs">{selectedCalc.teacher.subjects.join(', ')}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">Classes:</span>
+                        <p className="font-semibold">{selectedCalc.teacher.classes.join(', ')}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Earning Details */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-[#2F2FE4] uppercase tracking-wide mb-2">Earning Details</h4>
+                    <div className="rounded-lg bg-[#2F2FE4]/5 border border-[#2F2FE4]/20 p-3 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Total Yearly Earning:</span>
+                        <span className="font-semibold">{formatINR(viewSlipPayment.totalYearlyEarning)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Received Salary (Total Paid):</span>
+                        <span className="font-semibold text-green-600">{formatINR(viewSlipPayment.totalReceivedFees + viewSlipPayment.amount)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Remaining Salary:</span>
+                        <span className="font-semibold text-red-600">{formatINR(Math.max(0, viewSlipPayment.totalYearlyEarning - viewSlipPayment.totalReceivedFees - viewSlipPayment.amount))}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Current Payment */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-[#2F2FE4] uppercase tracking-wide mb-2">Current Payment</h4>
+                    <div className="rounded-lg bg-green-50 border border-green-200 p-3 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Current Month Salary:</span>
+                        <span className="text-xl font-bold text-green-600">{formatINR(viewSlipPayment.amount)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Month:</span>
+                        <span className="font-semibold">{MONTH_NAMES[viewSlipPayment.month]} {viewSlipPayment.year}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Payment Date:</span>
+                        <span className="font-semibold">
+                          {viewSlipPayment.paidAt
+                            ? new Date(viewSlipPayment.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+                            : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Payment Mode:</span>
+                        <span className="font-semibold">{viewSlipPayment.paymentMode}</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setViewSlipOpen(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  className="flex-1 bg-[#2F2FE4] hover:bg-[#2525c0]"
+                  onClick={printViewSalarySlip}
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  Print Salary Slip
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

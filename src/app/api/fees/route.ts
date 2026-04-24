@@ -82,7 +82,7 @@ async function calculateCarryForward(
       // This month has been paid - calculate the difference
       const dist = distributions.find((d) => d.month === m && d.year === yr);
       const baseDue = dist ? dist.amount : fallbackMonthlyFee;
-      const effectiveDue = baseDue + carryForward;
+      const effectiveDue = baseDue - carryForward;
       carryForward += (payment.amountPaid - effectiveDue);
     }
     // If no payment or unpaid, carryForward stays the same
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Calculate carry-forward from all previous months in this session
       const carryForward = await calculateCarryForward(studentId, monthInt, yearInt, student.monthlyFeeDistributions, student.monthlyFee);
-      effectiveAmountDue = Math.max(0, baseFee + carryForward);
+      effectiveAmountDue = Math.max(0, baseFee - carryForward);
     }
 
     let feePayment;
@@ -228,7 +228,7 @@ export async function POST(request: NextRequest) {
 
         if (nextPayment && nextPayment.paidAt) {
           // Next month already paid - adjust its amountDue
-          const adjustedDue = Math.max(0, nextPayment.amountDue + difference);
+          const adjustedDue = Math.max(0, nextPayment.amountDue - difference);
           await db.feePayment.update({
             where: { id: nextPayment.id },
             data: { amountDue: adjustedDue },

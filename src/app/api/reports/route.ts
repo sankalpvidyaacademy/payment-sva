@@ -260,7 +260,7 @@ async function getPendingFeesReport(searchParams: URLSearchParams) {
         carryForward += difference;
       } else {
         // Unpaid month: apply carry-forward from previous months
-        amountDue = Math.max(0, baseDue + carryForward);
+        amountDue = Math.max(0, baseDue - carryForward);
         amountPaid = 0;
         paidAt = null;
 
