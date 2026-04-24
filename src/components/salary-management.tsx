@@ -190,14 +190,9 @@ export function SalaryManagement() {
         )
         const subjectFeeTotal = relevantSubjectFees.reduce((s2, sf) => s2 + sf.yearlyFee, 0)
 
-        // Add coaching fee proportionally if teacher teaches any subjects for this student
-        // Coaching fee is split equally among all subjects the student has
-        const totalSubjects = s.subjectFees.length
-        const coachingShare = totalSubjects > 0
-          ? (s.coachingFee * teacherSubjects.filter((t) => s.subjects.includes(t)).length) / totalSubjects
-          : 0
-
-        return sum + subjectFeeTotal + coachingShare
+        // Coaching fee is NOT included in teacher earnings per PRD
+        // Only subject fees for subjects the teacher teaches are counted
+        return sum + subjectFeeTotal
       }, 0)
 
       // "Received Amount" = Total Salary Paid to Teacher (NOT student fee collected)

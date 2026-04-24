@@ -70,3 +70,37 @@ Stage Summary:
 - Teacher dashboard significantly improved with 4-card layout, progress bar, student contribution ✓
 - A4 salary slip with director signature added to teacher salary view ✓
 - Mobile-friendly responsive design ✓
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Fix Teacher Earning Bug - Remove coaching fee from calculation
+
+Work Log:
+- Identified bug: coaching fee was being included in teacher total yearly earning calculation
+- Example: 2 students with Math(₹8000) + Physics(₹8500) = ₹16,500, but coaching fee added ₹5,833 → showing ₹22,333 incorrectly
+- Fixed `src/components/salary-management.tsx`: Removed coachingShare from totalYearlyEarning calculation - now only sums subjectFeeTotal
+- Fixed `src/components/teacher-panel.tsx`: Removed coachingShare from totalYearlyEarning calculation (2 places)
+- Fixed `src/components/teacher-panel.tsx`: Removed coachingShare from studentContributions object and display
+- Removed Coaching badge display from Student Contribution section
+
+Stage Summary:
+- Teacher Total Yearly Earning now = Sum of Subject Fees ONLY (no coaching fee) ✓
+- Example: Math ₹8000 + Physics ₹8500 = ₹16,500 (correct, no coaching fee) ✓
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Fix Fee Payment client-side error - Pay button crash
+
+Work Log:
+- Identified root cause: `getAdjustedMonthData` was used at line 305 but declared at line 316, and it depended on `sessionYear` which was declared at line 311 (after the call)
+- Fixed by reordering declarations: moved `sessionYear`, `studentPayments`, and `getAdjustedMonthData` BEFORE `currentMonthFee`/`currentMonthPaid`/`currentMonthDue`
+- Added try-catch safety wrapper around `currentMonthDue` calculation with fallback to simple calculation
+- Improved error handling in `confirmPayFee`: added try-catch around `res.json()` on error response to prevent crash on non-JSON responses
+- Added `Math.max(0, ...)` wrapper on `currentMonthDue` result to prevent negative values
+
+Stage Summary:
+- Fixed variable declaration order (sessionYear → getAdjustedMonthData → currentMonthDue) ✓
+- Added error safety in payment flow ✓
+- Pay button should now work without crashing ✓

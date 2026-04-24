@@ -301,11 +301,8 @@ export default function TeacherPanel() {
         teacherSubjects.includes(sf.subject)
       )
       const subjectFeeTotal = relevantFees.reduce((s2, sf) => s2 + sf.yearlyFee, 0)
-      const totalSubjects = s.subjectFees.length
-      const coachingShare = totalSubjects > 0
-        ? (s.coachingFee * teacherSubjects.filter((t) => s.subjects.includes(t)).length) / totalSubjects
-        : 0
-      return sum + subjectFeeTotal + coachingShare
+      // Coaching fee is NOT included in teacher earnings per PRD
+      return sum + subjectFeeTotal
     }, 0)
   }
 
@@ -329,17 +326,13 @@ export default function TeacherPanel() {
       teacherSubjects.includes(sf.subject)
     )
     const subjectFeeTotal = relevantFees.reduce((sum, sf) => sum + sf.yearlyFee, 0)
-    const totalSubjects = s.subjectFees.length
-    const coachingShare = totalSubjects > 0
-      ? (s.coachingFee * matchedSubjects.length) / totalSubjects
-      : 0
-    const totalContribution = subjectFeeTotal + coachingShare
+    // Coaching fee is NOT included in teacher earnings per PRD
+    const totalContribution = subjectFeeTotal
     return {
       id: s.id,
       name: s.name,
       className: s.className,
       subjectFees: relevantFees.map((sf) => ({ subject: sf.subject, yearlyFee: sf.yearlyFee })),
-      coachingShare,
       totalContribution,
     }
   }).filter(Boolean) as Array<{
@@ -347,7 +340,6 @@ export default function TeacherPanel() {
     name: string
     className: string
     subjectFees: Array<{ subject: string; yearlyFee: number }>
-    coachingShare: number
     totalContribution: number
   }>
 
@@ -612,11 +604,6 @@ export default function TeacherPanel() {
                               {sf.subject}: {formatINR(sf.yearlyFee)}
                             </span>
                           ))}
-                          {sc.coachingShare > 0 && (
-                            <span className="inline-flex items-center gap-1 text-xs bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded">
-                              Coaching: {formatINR(sc.coachingShare)}
-                            </span>
-                          )}
                         </div>
                       )}
                     </div>

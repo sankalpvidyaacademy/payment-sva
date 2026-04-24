@@ -210,8 +210,14 @@ export function FeeCollection() {
         }),
       })
       if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || 'Payment failed')
+        let errorMsg = 'Payment failed'
+        try {
+          const err = await res.json()
+          errorMsg = err.error || errorMsg
+        } catch {
+          // Response was not JSON
+        }
+        throw new Error(errorMsg)
       }
       const payment = await res.json()
       setLastPayment(payment)
@@ -294,20 +300,7 @@ export function FeeCollection() {
     setTimeout(() => { printWindow.print() }, 300)
   }
 
-  const currentMonthFee = selectedStudent
-    ? getMonthFeeAmount(selectedStudent, parseInt(payingMonth), parseInt(payingYear))
-    : 0
-  const currentMonthPaid = selectedStudent
-    ? getMonthPaid(selectedStudent, parseInt(payingMonth), parseInt(payingYear))
-    : 0
-  const currentMonthDue = selectedStudent
-    ? (() => {
-        const { adjustedDue } = getAdjustedMonthData(selectedStudent, parseInt(payingMonth), parseInt(payingYear))
-        return adjustedDue - currentMonthPaid
-      })()
-    : 0
-
-  // Get all monthly payments for the fee slip breakdown
+  // Get session year first (needed by getAdjustedMonthData)
   const sessionYear = getSessionYear()
   const studentPayments = selectedStudent?.feePayments || []
 
@@ -324,7 +317,6 @@ export function FeeCollection() {
       if (m === month && yr === year) break
       const prevPayment = student.feePayments.find((p) => p.month === m && p.year === yr)
       if (prevPayment && prevPayment.paidAt) {
-        const prevBaseFee = getMonthFeeAmount(student, m, yr)
         const prevDue = prevPayment.amountDue
         carryForward += (prevPayment.amountPaid - prevDue)
       }
@@ -335,6 +327,23 @@ export function FeeCollection() {
 
     return { adjustedDue, paid, baseFee }
   }
+
+  const currentMonthFee = selectedStudent
+    ? getMonthFeeAmount(selectedStudent, parseInt(payingMonth), parseInt(payingYear))
+    : 0
+  const currentMonthPaid = selectedStudent
+    ? getMonthPaid(selectedStudent, parseInt(payingMonth), parseInt(payingYear))
+    : 0
+  const currentMonthDue = selectedStudent
+    ? (() => {
+        try {
+          const { adjustedDue } = getAdjustedMonthData(selectedStudent, parseInt(payingMonth), parseInt(payingYear))
+          return Math.max(0, adjustedDue - currentMonthPaid)
+        } catch {
+          return Math.max(0, currentMonthFee - currentMonthPaid)
+        }
+      })()
+    : 0
 
   return (
     <div className="space-y-6">
