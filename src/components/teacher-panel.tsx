@@ -169,11 +169,38 @@ export default function TeacherPanel() {
   )
   const totalReceived = paidSalaryMonths.reduce((sum, sp) => sum + sp.amount, 0)
 
-  // Get expected yearly earning from latest salary payment
-  const totalYearlyEarning = paidSalaryMonths.length > 0
-    ? paidSalaryMonths[paidSalaryMonths.length - 1].totalYearlyEarning
-    : 0
-  const remaining = totalYearlyEarning - totalReceived
+  // Calculate total yearly earning from latest salary payment OR from students
+  // Use the latest salary payment's totalYearlyEarning if available, otherwise calculate from students
+  let totalYearlyEarning = 0
+  if (paidSalaryMonths.length > 0) {
+    totalYearlyEarning = paidSalaryMonths[paidSalaryMonths.length - 1].totalYearlyEarning
+  } else if (teacher) {
+    // Calculate from students' subject fees for subjects this teacher teaches
+    totalYearlyEarning = students.reduce((sum, s) => {
+      const classMapping = teacher.classSubjects?.find(
+        (cs) => cs.className === s.className
+      )
+      if (!classMapping) return sum
+      const teacherSubjects = classMapping.subjects
+      const relevantFees = s.subjectFees.filter((sf) =>
+        teacherSubjects.includes(sf.subject)
+      )
+      const subjectFeeTotal = relevantFees.reduce((s2, sf) => s2 + sf.yearlyFee, 0)
+      const totalSubjects = s.subjectFees.length
+      const coachingShare = totalSubjects > 0
+        ? (s.coachingFee * teacherSubjects.filter((t) => s.subjects.includes(t)).length) / totalSubjects
+        : 0
+      return sum + subjectFeeTotal + coachingShare
+    }, 0)
+  }
+
+  const remaining = Math.max(0, totalYearlyEarning - totalReceived)
+
+  // Calculate monthly salary based on remaining months
+  const currentMonth = new Date().getMonth() + 1
+  const currentIdx = SESSION_MONTHS.indexOf(currentMonth)
+  const remainingMonths = SESSION_MONTHS.length - currentIdx
+  const monthlySalary = remainingMonths > 0 ? remaining / remainingMonths : 0
 
   if (loading) {
     return (
@@ -250,7 +277,7 @@ export default function TeacherPanel() {
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">
-                {SESSION_MONTHS.length - paidSalaryMonths.length} month(s) pending
+                Monthly: {formatINR(Math.round(monthlySalary))}
               </p>
             </CardContent>
           </Card>
@@ -289,7 +316,7 @@ export default function TeacherPanel() {
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-muted-foreground">
-                          {isPaid ? formatINR(payment.amount) : `Expected: ${formatINR(totalYearlyEarning / SESSION_MONTHS.length)}`}
+                          {isPaid ? formatINR(payment.amount) : `Expected: ${formatINR(Math.round(monthlySalary))}`}
                         </span>
                         <Badge
                           variant={isPaid ? 'default' : 'outline'}
@@ -514,9 +541,14 @@ export default function TeacherPanel() {
               <CardContent>
                 <div className="space-y-3">
                   {classStudents.map((student) => {
-                    // Calculate paid and remaining
-                    const paidTotal = student.feePayments.reduce((sum, fp) => sum + fp.amountPaid, 0)
-                    const remaining = student.totalYearlyFee - paidTotal
+                    // Get teacher's subjects for this student's class
+                    const classMapping = teacher.classSubjects?.find(
+                      (cs) => cs.className === student.className
+                    )
+                    const teacherSubjects = classMapping?.subjects || []
+                    const relevantFees = student.subjectFees.filter((sf) =>
+                      teacherSubjects.includes(sf.subject)
+                    )
 
                     return (
                       <div
@@ -525,24 +557,14 @@ export default function TeacherPanel() {
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-medium text-sm">{student.name}</span>
-                          <Badge
-                            variant={remaining <= 0 ? 'default' : 'destructive'}
-                            className="text-xs"
-                          >
-                            {remaining <= 0 ? 'Clear' : `${formatINR(remaining)} due`}
+                          <Badge variant="outline" className="text-xs">
+                            Class {student.className}
                           </Badge>
                         </div>
-                        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                          <span>Total: {formatINR(student.totalYearlyFee)}</span>
-                          <span className="text-green-600 dark:text-green-400">Paid: {formatINR(paidTotal)}</span>
-                          <span className={remaining > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>
-                            Remaining: {formatINR(remaining)}
-                          </span>
-                        </div>
-                        {/* Subject-wise fees */}
-                        {student.subjectFees.length > 0 && (
+                        {/* Subject-wise fees (only teacher's subjects) */}
+                        {relevantFees.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mt-1">
-                            {student.subjectFees.map((sf) => (
+                            {relevantFees.map((sf) => (
                               <span
                                 key={sf.id}
                                 className="inline-flex items-center gap-1 text-xs bg-muted px-2 py-0.5 rounded"

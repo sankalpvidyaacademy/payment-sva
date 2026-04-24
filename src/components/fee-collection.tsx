@@ -304,6 +304,31 @@ export function FeeCollection() {
   const sessionYear = getSessionYear()
   const studentPayments = selectedStudent?.feePayments || []
 
+  // Calculate adjusted monthly amounts for fee slip breakdown
+  // This handles carry-forward adjustments so the slip shows correct data
+  function getAdjustedMonthData(student: StudentData, month: number, year: number) {
+    const payment = student.feePayments.find((p) => p.month === month && p.year === year)
+    const baseFee = getMonthFeeAmount(student, month, year)
+
+    // Calculate carry-forward from all previous months in this session
+    let carryForward = 0
+    for (const m of SESSION_MONTHS) {
+      const yr = m >= 4 ? sessionYear : sessionYear + 1
+      if (m === month && yr === year) break
+      const prevPayment = student.feePayments.find((p) => p.month === m && p.year === yr)
+      if (prevPayment && prevPayment.paidAt) {
+        const prevBaseFee = getMonthFeeAmount(student, m, yr)
+        const prevDue = prevPayment.amountDue
+        carryForward += (prevPayment.amountPaid - prevDue)
+      }
+    }
+
+    const adjustedDue = payment && payment.paidAt ? payment.amountDue : Math.max(0, baseFee + carryForward)
+    const paid = payment && payment.paidAt ? payment.amountPaid : 0
+
+    return { adjustedDue, paid, baseFee }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header & Filters */}
@@ -809,14 +834,23 @@ export function FeeCollection() {
                     <tbody>
                       {SESSION_MONTHS.map((m) => {
                         const yr = m >= 4 ? sessionYear : sessionYear + 1
-                        const payment = studentPayments.find((p) => p.month === m && p.year === yr)
-                        const fee = getMonthFeeAmount(selectedStudent, m, yr)
-                        const paid = payment ? payment.amountPaid : 0
-                        const isPaid = paid >= fee && paid > 0
+                        const { adjustedDue, paid, baseFee } = getAdjustedMonthData(selectedStudent, m, yr)
+                        // Zero fee month = blank row
+                        if (baseFee === 0 && paid === 0) {
+                          return (
+                            <tr key={m}>
+                              <td>{MONTH_SHORT[m]} {yr}</td>
+                              <td>-</td>
+                              <td>-</td>
+                              <td></td>
+                            </tr>
+                          )
+                        }
+                        const isPaid = paid >= adjustedDue && paid > 0
                         return (
                           <tr key={m}>
                             <td>{MONTH_SHORT[m]} {yr}</td>
-                            <td>{formatINR(fee)}</td>
+                            <td>{formatINR(adjustedDue)}</td>
                             <td>{paid > 0 ? formatINR(paid) : '-'}</td>
                             <td className={isPaid ? 'paid' : (paid > 0 ? 'unpaid' : 'unpaid')}>
                               {paid === 0 ? 'Unpaid' : isPaid ? 'Paid' : 'Partial'}
@@ -934,14 +968,23 @@ export function FeeCollection() {
                         <TableBody>
                           {SESSION_MONTHS.map((m) => {
                             const yr = m >= 4 ? sessionYear : sessionYear + 1
-                            const payment = studentPayments.find((p) => p.month === m && p.year === yr)
-                            const fee = getMonthFeeAmount(selectedStudent, m, yr)
-                            const paid = payment ? payment.amountPaid : 0
-                            const isPaid = paid >= fee && paid > 0
+                            const { adjustedDue, paid, baseFee } = getAdjustedMonthData(selectedStudent, m, yr)
+                            // Zero fee month = skip
+                            if (baseFee === 0 && paid === 0) {
+                              return (
+                                <TableRow key={m}>
+                                  <TableCell className="text-xs py-1">{MONTH_SHORT[m]}</TableCell>
+                                  <TableCell className="text-xs py-1 text-right">-</TableCell>
+                                  <TableCell className="text-xs py-1 text-right">-</TableCell>
+                                  <TableCell className="text-xs py-1 text-center">-</TableCell>
+                                </TableRow>
+                              )
+                            }
+                            const isPaid = paid >= adjustedDue && paid > 0
                             return (
                               <TableRow key={m}>
                                 <TableCell className="text-xs py-1">{MONTH_SHORT[m]}</TableCell>
-                                <TableCell className="text-xs py-1 text-right">{formatINR(fee)}</TableCell>
+                                <TableCell className="text-xs py-1 text-right">{formatINR(adjustedDue)}</TableCell>
                                 <TableCell className="text-xs py-1 text-right">{paid > 0 ? formatINR(paid) : '-'}</TableCell>
                                 <TableCell className="text-xs py-1 text-center">
                                   <Badge

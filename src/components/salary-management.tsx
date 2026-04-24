@@ -158,27 +158,44 @@ export function SalaryManagement() {
   const teacherCalcs = useMemo<TeacherCalc[]>(() => {
     const sessionYear = getSessionYear()
     return teachers.map((teacher) => {
-      // Match students whose className is in teacher's classes AND subjects overlap
+      // Match students whose className is in teacher's classes AND subjects overlap using classSubjects
       const matchedStudents = allStudents.filter((s) => {
-        const classMatch = teacher.classes.includes(s.className)
-        const subjectOverlap =
-          s.subjects.some((sub) => teacher.subjects.includes(sub)) ||
-          teacher.subjects.includes('All Subjects')
-        return classMatch && subjectOverlap
+        // Find teacher's subject mapping for this student's class
+        const classMapping = teacher.classSubjects?.find(
+          (cs) => cs.className === s.className
+        )
+        if (!classMapping || classMapping.subjects.length === 0) return false
+        // Student must share at least one subject with the teacher in this class
+        const studentSubjects = s.subjects || []
+        return studentSubjects.some((sub) => classMapping.subjects.includes(sub))
       })
 
-      const totalYearlyEarning = matchedStudents.reduce(
-        (sum, s) => sum + s.totalYearlyFee,
-        0
-      )
+      // Total Yearly Earning = sum of ONLY the fees for subjects the teacher teaches
+      const totalYearlyEarning = matchedStudents.reduce((sum, s) => {
+        // Get teacher's subjects for this student's class
+        const classMapping = teacher.classSubjects?.find(
+          (cs) => cs.className === s.className
+        )
+        if (!classMapping) return sum
 
-      // Calculate received fees from matched students
-      const matchedStudentIds = new Set(matchedStudents.map((s) => s.id))
-      const totalReceivedFees = allFees
-        .filter((f) => matchedStudentIds.has(f.studentId))
-        .reduce((sum, f) => sum + f.amountPaid, 0)
+        // Only count subject fees for subjects the teacher teaches
+        const teacherSubjects = classMapping.subjects
+        const relevantSubjectFees = s.subjectFees.filter((sf) =>
+          teacherSubjects.includes(sf.subject)
+        )
+        const subjectFeeTotal = relevantSubjectFees.reduce((s2, sf) => s2 + sf.yearlyFee, 0)
 
-      // Salary already paid this session
+        // Add coaching fee proportionally if teacher teaches any subjects for this student
+        // Coaching fee is split equally among all subjects the student has
+        const totalSubjects = s.subjectFees.length
+        const coachingShare = totalSubjects > 0
+          ? (s.coachingFee * teacherSubjects.filter((t) => s.subjects.includes(t)).length) / totalSubjects
+          : 0
+
+        return sum + subjectFeeTotal + coachingShare
+      }, 0)
+
+      // "Received Amount" = Total Salary Paid to Teacher (NOT student fee collected)
       const salaryHistory = teacher.salaryPayments || []
       const salaryPaidThisSession = salaryHistory
         .filter((sp) => {
@@ -187,11 +204,14 @@ export function SalaryManagement() {
         })
         .reduce((sum, sp) => sum + sp.amount, 0)
 
-      // Current month salary formula
+      // totalReceivedFees = salaryPaidThisSession (for backward compat in UI)
+      const totalReceivedFees = salaryPaidThisSession
+
+      // Monthly Salary = Remaining Amount ÷ Remaining Months
       const remainingMonths = getRemainingMonthsInSession()
-      const distributableAmount = Math.max(0, totalReceivedFees - salaryPaidThisSession)
+      const remainingAmount = Math.max(0, totalYearlyEarning - salaryPaidThisSession)
       const currentMonthSalary =
-        remainingMonths > 0 ? distributableAmount / remainingMonths : 0
+        remainingMonths > 0 ? remainingAmount / remainingMonths : 0
 
       return {
         teacher,
@@ -233,7 +253,7 @@ export function SalaryManagement() {
           month: cm,
           year: cy,
           totalYearlyEarning: selectedCalc.totalYearlyEarning,
-          totalReceivedFees: selectedCalc.totalReceivedFees,
+          totalReceivedFees: selectedCalc.salaryPaidThisSession,
           amount: Math.round(selectedCalc.currentMonthSalary),
           paymentMode,
         }),
@@ -469,20 +489,20 @@ export function SalaryManagement() {
             <Card>
               <CardContent className="p-3 sm:p-4 text-center">
                 <p className="text-xs sm:text-sm text-muted-foreground mb-1">
-                  Fees Received So Far
+                  Received Amount
                 </p>
                 <p className="text-base sm:text-xl font-bold text-green-600">
-                  {formatINR(selectedCalc.totalReceivedFees)}
+                  {formatINR(selectedCalc.salaryPaidThisSession)}
                 </p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-3 sm:p-4 text-center">
                 <p className="text-xs sm:text-sm text-muted-foreground mb-1">
-                  Salary Paid This Session
+                  Remaining Amount
                 </p>
                 <p className="text-base sm:text-xl font-bold text-orange-600">
-                  {formatINR(selectedCalc.salaryPaidThisSession)}
+                  {formatINR(Math.max(0, selectedCalc.totalYearlyEarning - selectedCalc.salaryPaidThisSession))}
                 </p>
               </CardContent>
             </Card>
@@ -511,8 +531,8 @@ export function SalaryManagement() {
               </h4>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Fees Received</span>
-                  <span className="font-medium">{formatINR(selectedCalc.totalReceivedFees)}</span>
+                  <span className="text-muted-foreground">Total Yearly Earning</span>
+                  <span className="font-medium">{formatINR(selectedCalc.totalYearlyEarning)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Salary Already Paid</span>
@@ -522,9 +542,9 @@ export function SalaryManagement() {
                 </div>
                 <Separator />
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Distributable Amount</span>
+                  <span className="text-muted-foreground">Remaining Amount</span>
                   <span className="font-medium">
-                    {formatINR(Math.max(0, selectedCalc.totalReceivedFees - selectedCalc.salaryPaidThisSession))}
+                    {formatINR(Math.max(0, selectedCalc.totalYearlyEarning - selectedCalc.salaryPaidThisSession))}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -680,45 +700,71 @@ export function SalaryManagement() {
                         <TableRow>
                           <TableHead>Name</TableHead>
                           <TableHead>Class</TableHead>
-                          <TableHead>Subjects</TableHead>
-                          <TableHead>Yearly Fee</TableHead>
+                          <TableHead>Subject</TableHead>
+                          <TableHead>Subject Fee</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {selectedCalc.matchedStudents.map((s) => (
-                          <TableRow key={s.id}>
-                            <TableCell className="font-medium">{s.name}</TableCell>
-                            <TableCell>{s.className}</TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap gap-1">
-                                {s.subjects.map((sub) => (
-                                  <Badge key={sub} variant="secondary" className="text-xs">
-                                    {sub}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </TableCell>
-                            <TableCell>{formatINR(s.totalYearlyFee)}</TableCell>
-                          </TableRow>
-                        ))}
+                        {selectedCalc.matchedStudents.map((s) => {
+                          // Get teacher's subjects for this student's class
+                          const classMapping = selectedCalc.teacher.classSubjects?.find(
+                            (cs) => cs.className === s.className
+                          )
+                          const teacherSubjects = classMapping?.subjects || []
+                          const relevantFees = s.subjectFees.filter((sf) =>
+                            teacherSubjects.includes(sf.subject)
+                          )
+                          return relevantFees.map((sf, idx) => (
+                            <TableRow key={`${s.id}-${sf.id}`}>
+                              {idx === 0 ? (
+                                <TableCell rowSpan={relevantFees.length} className="font-medium">
+                                  {s.name}
+                                </TableCell>
+                              ) : null}
+                              {idx === 0 ? (
+                                <TableCell rowSpan={relevantFees.length}>
+                                  {s.className}
+                                </TableCell>
+                              ) : null}
+                              <TableCell>
+                                <Badge variant="secondary" className="text-xs">{sf.subject}</Badge>
+                              </TableCell>
+                              <TableCell>{formatINR(sf.yearlyFee)}</TableCell>
+                            </TableRow>
+                          ))
+                        }).flat()}
                       </TableBody>
                     </Table>
                   </div>
                   {/* Mobile */}
                   <div className="sm:hidden space-y-2">
-                    {selectedCalc.matchedStudents.map((s) => (
-                      <div key={s.id} className="flex justify-between items-center p-2 rounded-lg border">
-                        <div>
-                          <p className="font-medium text-sm">{s.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Class {s.className} • {s.subjects.join(', ')}
-                          </p>
+                    {selectedCalc.matchedStudents.map((s) => {
+                      const classMapping = selectedCalc.teacher.classSubjects?.find(
+                        (cs) => cs.className === s.className
+                      )
+                      const teacherSubjects = classMapping?.subjects || []
+                      const relevantFees = s.subjectFees.filter((sf) =>
+                        teacherSubjects.includes(sf.subject)
+                      )
+                      return (
+                        <div key={s.id} className="rounded-lg border p-2.5 space-y-1.5">
+                          <div className="flex justify-between items-center">
+                            <p className="font-medium text-sm">{s.name}</p>
+                            <Badge variant="outline" className="text-xs">Class {s.className}</Badge>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {relevantFees.map((sf) => (
+                              <span
+                                key={sf.id}
+                                className="inline-flex items-center gap-1 text-xs bg-muted px-2 py-0.5 rounded"
+                              >
+                                {sf.subject}: {formatINR(sf.yearlyFee)}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                        <span className="font-semibold text-sm">
-                          {formatINR(s.totalYearlyFee)}
-                        </span>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               </CardContent>

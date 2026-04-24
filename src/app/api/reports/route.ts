@@ -212,8 +212,12 @@ async function getPendingFeesReport(searchParams: URLSearchParams) {
         amountPaid: number;
         status: string;
         colorCode: string;
+        paidAt: string | null;
       }
     > = {};
+
+    // Calculate carry-forward adjustments for each month
+    let carryForward = 0;
 
     for (const { month, year } of sessionMonths) {
       const key = `${month}-${year}`;
@@ -226,17 +230,55 @@ async function getPendingFeesReport(searchParams: URLSearchParams) {
         (d) => d.month === month && d.year === year
       );
       const baseDue = distribution ? distribution.amount : student.monthlyFee;
-      
-      // If a FeePayment record exists with paidAt set (actual payment), use its amountDue
-      // which includes any carry-forward adjustments
-      const amountDue = (payment && payment.paidAt) ? payment.amountDue : baseDue;
-      const amountPaid = payment && payment.paidAt ? payment.amountPaid : 0;
-      const paidAt = payment && payment.paidAt ? payment.paidAt : null;
+
+      // Zero fee month: skip entirely (blank in UI)
+      if (baseDue === 0 && !payment) {
+        monthlyData[key] = {
+          month,
+          year,
+          amountDue: 0,
+          amountPaid: 0,
+          status: 'none',
+          colorCode: 'gray',
+          paidAt: null,
+        };
+        continue;
+      }
+
+      let amountDue: number;
+      let amountPaid: number;
+      let paidAt: Date | null;
+
+      if (payment && payment.paidAt) {
+        // This month has been paid - use its amountDue (includes carry-forward)
+        amountDue = payment.amountDue;
+        amountPaid = payment.amountPaid;
+        paidAt = payment.paidAt;
+
+        // Update carry-forward for next months
+        const difference = amountPaid - amountDue;
+        carryForward += difference;
+      } else {
+        // Unpaid month: apply carry-forward from previous months
+        amountDue = Math.max(0, baseDue + carryForward);
+        amountPaid = 0;
+        paidAt = null;
+
+        // Reset carry-forward since it's been applied to this month's due
+        // (If this month remains unpaid, the carry-forward is "absorbed" into its due)
+        // The carry-forward was from overpayments in previous months reducing this month's due
+        // If there was underpayment, it increases this month's due
+        carryForward = 0;
+      }
 
       let status: string;
       let colorCode: string;
 
-      if (amountPaid === 0) {
+      if (amountDue === 0 && amountPaid === 0) {
+        // Zero fee after adjustment - show as blank
+        status = 'none';
+        colorCode = 'gray';
+      } else if (amountPaid === 0) {
         status = 'unpaid';
         colorCode = 'red';
       } else if (amountPaid >= amountDue) {

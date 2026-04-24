@@ -460,3 +460,23 @@ Updated 4 files to integrate MonthlyFeeDistribution throughout the fee collectio
 - Carry-forward logic (advance/partial) preserved by storing `amountDue` from distribution at creation time
 
 Detailed work log in `/agent-ctx/4-5-6-monthly-fee-distribution.md`
+---
+Task ID: 1
+Agent: Main
+Task: PRD Update - Fee Slip, Pending Fees, Teacher Salary Logic Corrections
+
+Work Log:
+- Fixed reports API (`/api/reports/route.ts`): Added carry-forward calculation in `getPendingFeesReport()` so unpaid months show adjusted amounts (e.g., next month after overpayment shows reduced due). Added "none" status for zero-fee months. Added `paidAt` field to monthlyData type.
+- Fixed `pending-fees.tsx`: Added handling for "none" status (zero fee = blank in UI). Updated display to show `amountPaid` for paid months (e.g., ₹6000 when overpaid) instead of just base `amountDue`. Updated both desktop table and mobile card views.
+- Fixed `fee-collection.tsx`: Added `getAdjustedMonthData()` function that calculates carry-forward for fee slip monthly breakdown. Updated both print-ready (A4) and screen versions of monthly breakdown table to use adjusted amounts. Added zero-fee row handling (blank).
+- Fixed `salary-management.tsx`: Changed Total Yearly Earning to only include subject fees for subjects the teacher teaches (using classSubjects mapping + proportional coaching fee). Changed "Received Amount" to be salary paid to teacher (not student fees collected). Changed monthly salary formula to `Remaining Amount ÷ Remaining Months`. Updated summary cards (Received Amount, Remaining Amount). Updated calculation breakdown section. Updated matched students table to show only teacher's subjects with subject-wise fees (removed Total Paid/Remaining columns).
+- Fixed `teacher-panel.tsx`: Updated dashboard salary calculation to use same logic as salary-management (only teacher's subjects for yearly earning, received = salary paid, remaining = yearly earning - received, monthly = remaining ÷ remaining months). Updated monthly status expected amount. Updated students tab to show only teacher's subject-wise fees (removed Total Paid, Remaining).
+
+Stage Summary:
+- Carry-forward adjustment now works correctly in both pending fees and fee slip
+- Zero-fee months show as blank (not "Unpaid")
+- Extra payments show actual paid amount (e.g., ₹6000 Paid) in pending fees
+- Teacher salary only counts fees for subjects they teach
+- Received Amount = salary paid to teacher (not student fees)
+- Monthly salary = remaining amount ÷ remaining months
+- Teacher student mapping shows only relevant subjects and fees

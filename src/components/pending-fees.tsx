@@ -58,6 +58,8 @@ function getStatusCellClass(status: string): string {
       return 'bg-red-500/15 text-red-600 dark:text-red-400' // Treat partial as unpaid (red)
     case 'advance':
       return 'bg-green-500/25 text-green-800 dark:text-green-300' // Treat advance as paid (green)
+    case 'none':
+      return '' // Zero fee - no color
     default:
       return 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
   }
@@ -72,6 +74,8 @@ function getStatusDotClass(status: string): string {
     case 'unpaid':
     case 'partial':
       return 'bg-red-500'
+    case 'none':
+      return 'bg-gray-100 dark:bg-gray-800' // Zero fee - no dot
     default:
       return 'bg-gray-300'
   }
@@ -87,6 +91,8 @@ function getStatusLabel(status: string): string {
       return 'Partial'
     case 'advance':
       return 'Advance'
+    case 'none':
+      return '' // Zero fee - no label
     default:
       return 'No Fee'
   }
@@ -295,7 +301,12 @@ export default function PendingFees() {
                                 </TableCell>
                               )
                             }
+                            // Zero fee month = blank
+                            if (md.status === 'none') {
+                              return <TableCell key={m} className="text-center">-</TableCell>
+                            }
                             const isPaid = md.status === 'paid' || md.status === 'advance'
+                            const displayAmount = isPaid ? md.amountPaid : md.amountDue
                             return (
                               <TableCell key={m} className="text-center">
                                 <span
@@ -303,7 +314,7 @@ export default function PendingFees() {
                                     md.status
                                   )}`}
                                 >
-                                  <span>{formatINR(md.amountDue)}</span>
+                                  <span>{formatINR(displayAmount)}</span>
                                   {isPaid && md.paidAt && (
                                     <span className="block text-[10px] opacity-70 mt-0.5">
                                       {formatPaymentDate(md.paidAt)}
@@ -415,8 +426,9 @@ export default function PendingFees() {
                       {SESSION_MONTHS.map((m) => {
                         const key = `${m}-${m >= 4 ? sessionYear : sessionYear + 1}`
                         const md = student.monthlyData[key]
-                        if (!md) return null
+                        if (!md || md.status === 'none') return null
                         const isPaid = md.status === 'paid' || md.status === 'advance'
+                        const displayAmount = isPaid ? md.amountPaid : md.amountDue
                         return (
                           <div
                             key={m}
@@ -432,7 +444,7 @@ export default function PendingFees() {
                                 {isPaid ? 'Paid' : 'Unpaid'}
                               </span>
                               <span className="text-muted-foreground w-16 text-right">
-                                {formatINR(md.amountDue)}
+                                {formatINR(displayAmount)}
                               </span>
                               {isPaid && md.paidAt && (
                                 <span className="text-[10px] text-muted-foreground">
