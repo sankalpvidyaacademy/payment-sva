@@ -437,8 +437,8 @@ export default function StudentPanel() {
               statusLabel = 'Paid'
               statusClass = 'bg-green-500/20 text-green-700 dark:text-green-400 border-green-200'
             } else {
-              statusLabel = 'Partial'
-              statusClass = 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-200'
+              statusLabel = `Paid ${formatINR(paid)}`
+              statusClass = 'bg-gray-400/20 text-gray-700 dark:text-gray-300 border-gray-300'
             }
 
             // Show adjustment indicator if adjustedDue differs from baseFee
@@ -452,7 +452,7 @@ export default function StudentPanel() {
                     status === 'paid'
                       ? 'bg-green-500'
                       : status === 'partial'
-                      ? 'bg-yellow-500'
+                      ? 'bg-gray-400'
                       : 'bg-red-500'
                   }`}
                 />

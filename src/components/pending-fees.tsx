@@ -47,7 +47,7 @@ function getSessionYear(): number {
   return month >= 1 && month <= 3 ? year - 1 : year
 }
 
-// Color coding: Simplified to Green (Paid) and Red (Unpaid)
+// Color coding: Green (Paid), Gray (Partial), Red (Unpaid)
 function getStatusCellClass(status: string): string {
   switch (status) {
     case 'paid':
@@ -55,7 +55,7 @@ function getStatusCellClass(status: string): string {
     case 'unpaid':
       return 'bg-red-500/20 text-red-700 dark:text-red-400'
     case 'partial':
-      return 'bg-red-500/15 text-red-600 dark:text-red-400' // Treat partial as unpaid (red)
+      return 'bg-gray-400/20 text-gray-700 dark:text-gray-300' // Partial paid = gray
     case 'advance':
       return 'bg-green-500/25 text-green-800 dark:text-green-300' // Treat advance as paid (green)
     case 'none':
@@ -72,8 +72,9 @@ function getStatusDotClass(status: string): string {
     case 'advance':
       return 'bg-green-500'
     case 'unpaid':
-    case 'partial':
       return 'bg-red-500'
+    case 'partial':
+      return 'bg-gray-400' // Partial paid = gray dot
     case 'none':
       return 'bg-gray-100 dark:bg-gray-800' // Zero fee - no dot
     default:
@@ -81,14 +82,14 @@ function getStatusDotClass(status: string): string {
   }
 }
 
-function getStatusLabel(status: string): string {
+function getStatusLabel(status: string, amountPaid?: number): string {
   switch (status) {
     case 'paid':
       return 'Paid'
     case 'unpaid':
       return 'Unpaid'
     case 'partial':
-      return 'Partial'
+      return amountPaid ? `Paid ${formatINR(amountPaid)}` : 'Partial'
     case 'advance':
       return 'Advance'
     case 'none':
@@ -221,11 +222,15 @@ export default function PendingFees() {
         </div>
       </div>
 
-      {/* Color Legend - Simplified to Green/Red */}
+      {/* Color Legend: Green/Gray/Red */}
       <div className="flex flex-wrap gap-3 text-xs">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-sm bg-green-500/40" />
           <span className="text-muted-foreground">Paid</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-sm bg-gray-400/40" />
+          <span className="text-muted-foreground">Partial Paid</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded-sm bg-red-500/40" />
@@ -305,7 +310,9 @@ export default function PendingFees() {
                               return <TableCell key={m} className="text-center">-</TableCell>
                             }
                             const isPaid = md.status === 'paid' || md.status === 'advance'
-                            const displayAmount = isPaid ? md.amountPaid : md.amountDue
+                            const isPartial = md.status === 'partial'
+                            // For paid: show amountPaid. For partial: show amountPaid. For unpaid: show amountDue
+                            const displayAmount = (isPaid || isPartial) ? md.amountPaid : md.amountDue
                             return (
                               <TableCell key={m} className="text-center">
                                 <span
@@ -314,7 +321,7 @@ export default function PendingFees() {
                                   )}`}
                                 >
                                   <span>{formatINR(displayAmount)}</span>
-                                  {isPaid && md.paidAt && (
+                                  {(isPaid || isPartial) && md.paidAt && (
                                     <span className="block text-[10px] opacity-70 mt-0.5">
                                       {formatPaymentDate(md.paidAt)}
                                     </span>
@@ -426,7 +433,8 @@ export default function PendingFees() {
                         const md = student.monthlyData[key]
                         if (!md || md.status === 'none') return null
                         const isPaid = md.status === 'paid' || md.status === 'advance'
-                        const displayAmount = isPaid ? md.amountPaid : md.amountDue
+                        const isPartial = md.status === 'partial'
+                        const displayAmount = (isPaid || isPartial) ? md.amountPaid : md.amountDue
                         return (
                           <div
                             key={m}
@@ -439,12 +447,12 @@ export default function PendingFees() {
                                   md.status
                                 )}`}
                               >
-                                {isPaid ? 'Paid' : 'Unpaid'}
+                                {isPaid ? 'Paid' : isPartial ? `Paid ${formatINR(md.amountPaid)}` : 'Unpaid'}
                               </span>
                               <span className="text-muted-foreground w-16 text-right">
                                 {formatINR(displayAmount)}
                               </span>
-                              {isPaid && md.paidAt && (
+                              {(isPaid || isPartial) && md.paidAt && (
                                 <span className="text-[10px] text-muted-foreground">
                                   {formatPaymentDate(md.paidAt)}
                                 </span>

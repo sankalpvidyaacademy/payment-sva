@@ -362,7 +362,7 @@ async function getPendingFeesReport(searchParams: URLSearchParams) {
         colorCode = 'green';
       } else {
         status = 'partial';
-        colorCode = 'red'; // Treat partial as unpaid (red) per PRD
+        colorCode = 'gray'; // Partial paid = gray
       }
 
       monthlyData[key] = {

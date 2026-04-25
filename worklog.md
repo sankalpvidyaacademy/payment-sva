@@ -123,3 +123,28 @@ Stage Summary:
 - Teacher dashboard clean - Monthly Salary Status moved to modal ✓
 - Fee slip shows real-time updated data after payment ✓
 - Reports show Total Income = Subject Fees + Coaching Fees with breakdown ✓
+
+---
+Task ID: 8
+Agent: Main Agent
+Task: PRD Update - Partial Payment Display Fix & Fee Slip Correction
+
+Work Log:
+- Fix 1: Partial Payment Display - Updated color logic across all components:
+  - pending-fees.tsx: Changed partial status from red (bg-red-500/15) to gray (bg-gray-400/20), dot from red to gray, added "Partial Paid" to color legend
+  - pending-fees.tsx: Updated desktop table and mobile cards to show amountPaid for partial months (not amountDue), added "Paid ₹{amount}" label
+  - student-panel.tsx: Changed partial status class from yellow to gray (bg-gray-400/20), status stripe from yellow to gray, label shows "Paid ₹{amount}"
+  - reports/route.ts: Changed partial colorCode from 'red' to 'gray'
+- Fix 2A: Fee Slip Remaining Fee - Fixed double-counting bug in screen version: changed from `totalYearlyFee - getTotalPaid - lastPayment.amountPaid` to `totalYearlyFee - getTotalPaid` (getTotalPaid already includes lastPayment after refresh)
+- Fix 2B: Fee Slip Adjustment Scope - Rewrote getAdjustedMonthData to only apply carry-forward from the IMMEDIATELY PREVIOUS month for unpaid months. Old logic accumulated from ALL previous months causing cascading adjustments. New logic: paid months use stored data, unpaid months only consider previous month's surplus/deficit.
+- Fix 2C: Fee Slip Monthly Breakdown - Updated both print and screen versions of fee slip monthly breakdown:
+  - Print version: Added .partial CSS class (gray bg), partial now shows "Paid ₹{amount}" instead of "Partial"
+  - Screen version: Partial Badge changed from red to gray, shows "Paid ₹{amount}" instead of "Partial"
+- All changes verified with lint check (clean pass)
+
+Stage Summary:
+- Partial payments now show GRAY color (not red/yellow) with paid amount displayed ✓
+- Color legend: Green (Paid), Gray (Partial), Red (Unpaid), Blank (No Fee) ✓
+- Fee slip remaining fee no longer double-counts last payment ✓
+- Fee slip adjustment only applies to next month, doesn't cascade ✓
+- Fee slip partial months show gray with "Paid ₹{amount}" label ✓

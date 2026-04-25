@@ -293,6 +293,7 @@ export function FeeCollection() {
           table.monthly-table th, table.monthly-table td { border: 1px solid #e5e7eb; padding: 4px 8px; text-align: center; }
           table.monthly-table th { background: #f3f4f6; font-weight: 600; }
           table.monthly-table td.paid { background: #dcfce7; color: #166534; }
+          table.monthly-table td.partial { background: #e5e7eb; color: #374151; }
           table.monthly-table td.unpaid { background: #fee2e2; color: #991b1b; }
           .footer { margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 11px; color: #888; }
           .footer .signature { text-align: center; }
@@ -316,27 +317,32 @@ export function FeeCollection() {
   const studentPayments = selectedStudent?.feePayments || []
 
   // Calculate adjusted monthly amounts for fee slip breakdown
-  // This handles carry-forward adjustments so the slip shows correct data
+  // PRD: Adjustment applies ONLY to the next upcoming month, NOT all months
+  // Paid months show their stored data; only the next month after a payment gets adjusted
   function getAdjustedMonthData(student: StudentData, month: number, year: number) {
     const payment = student.feePayments.find((p) => p.month === month && p.year === year)
     const baseFee = getMonthFeeAmount(student, month, year)
 
-    // Calculate carry-forward from all previous months in this session
+    if (payment && payment.paidAt) {
+      // Paid month - use stored values (already includes any adjustment from previous month)
+      return { adjustedDue: payment.amountDue, paid: payment.amountPaid, baseFee }
+    }
+
+    // Unpaid month - only apply carry-forward from the IMMEDIATELY PREVIOUS month
+    // Do NOT cascade adjustments from all previous months
+    const monthIdx = SESSION_MONTHS.indexOf(month)
     let carryForward = 0
-    for (const m of SESSION_MONTHS) {
-      const yr = m >= 4 ? sessionYear : sessionYear + 1
-      if (m === month && yr === year) break
-      const prevPayment = student.feePayments.find((p) => p.month === m && p.year === yr)
+    if (monthIdx > 0) {
+      const prevM = SESSION_MONTHS[monthIdx - 1]
+      const prevYr = prevM >= 4 ? sessionYear : sessionYear + 1
+      const prevPayment = student.feePayments.find((p) => p.month === prevM && p.year === prevYr)
       if (prevPayment && prevPayment.paidAt) {
-        const prevDue = prevPayment.amountDue
-        carryForward += (prevPayment.amountPaid - prevDue)
+        carryForward = prevPayment.amountPaid - prevPayment.amountDue
       }
     }
 
-    const adjustedDue = payment && payment.paidAt ? payment.amountDue : Math.max(0, baseFee - carryForward)
-    const paid = payment && payment.paidAt ? payment.amountPaid : 0
-
-    return { adjustedDue, paid, baseFee }
+    const adjustedDue = Math.max(0, baseFee - carryForward)
+    return { adjustedDue, paid: 0, baseFee }
   }
 
   const currentMonthFee = selectedStudent
@@ -824,8 +830,8 @@ export function FeeCollection() {
                       <span>{formatINR(selectedStudent.totalYearlyFee)}</span>
                     </div>
                     <div className="payment-row remaining">
-                      <span>Remaining Fee after payment:</span>
-                      <span>{formatINR(Math.max(0, selectedStudent.totalYearlyFee - getTotalPaid(selectedStudent) - lastPayment.amountPaid))}</span>
+                      <span>Remaining Fee:</span>
+                      <span>{formatINR(Math.max(0, selectedStudent.totalYearlyFee - getTotalPaid(selectedStudent)))}</span>
                     </div>
                     <div className="payment-row">
                       <span>Payment Date:</span>
@@ -874,13 +880,14 @@ export function FeeCollection() {
                           )
                         }
                         const isPaid = paid >= adjustedDue && paid > 0
+                        const isPartial = paid > 0 && !isPaid
                         return (
                           <tr key={m}>
                             <td>{MONTH_SHORT[m]} {yr}</td>
                             <td>{formatINR(adjustedDue)}</td>
                             <td>{paid > 0 ? formatINR(paid) : '-'}</td>
-                            <td className={isPaid ? 'paid' : (paid > 0 ? 'unpaid' : 'unpaid')}>
-                              {paid === 0 ? 'Unpaid' : isPaid ? 'Paid' : 'Partial'}
+                            <td className={isPaid ? 'paid' : (isPartial ? 'partial' : 'unpaid')}>
+                              {paid === 0 ? 'Unpaid' : isPaid ? 'Paid' : `Paid ${formatINR(paid)}`}
                             </td>
                           </tr>
                         )
@@ -952,7 +959,7 @@ export function FeeCollection() {
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Remaining Fee:</span>
-                        <span className="font-semibold text-red-600">{formatINR(Math.max(0, selectedStudent.totalYearlyFee - getTotalPaid(selectedStudent) - lastPayment.amountPaid))}</span>
+                        <span className="font-semibold text-red-600">{formatINR(Math.max(0, selectedStudent.totalYearlyFee - getTotalPaid(selectedStudent)))}</span>
                       </div>
                       <Separator />
                       <div className="flex justify-between text-sm">
@@ -1008,6 +1015,7 @@ export function FeeCollection() {
                               )
                             }
                             const isPaid = paid >= adjustedDue && paid > 0
+                            const isPartial = paid > 0 && !isPaid
                             return (
                               <TableRow key={m}>
                                 <TableCell className="text-xs py-1">{MONTH_SHORT[m]}</TableCell>
@@ -1019,12 +1027,12 @@ export function FeeCollection() {
                                     className={
                                       isPaid
                                         ? 'bg-green-100 text-green-700 border-green-200'
-                                        : paid > 0
-                                        ? 'bg-red-100 text-red-700 border-red-200'
+                                        : isPartial
+                                        ? 'bg-gray-200 text-gray-700 border-gray-300'
                                         : 'bg-gray-100 text-gray-500 border-gray-200'
                                     }
                                   >
-                                    {paid === 0 ? 'Unpaid' : isPaid ? 'Paid' : 'Partial'}
+                                    {paid === 0 ? 'Unpaid' : isPaid ? 'Paid' : `Paid ${formatINR(paid)}`}
                                   </Badge>
                                 </TableCell>
                               </TableRow>
