@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAppStore } from '@/lib/store'
 import { MONTH_NAMES, SESSION_MONTHS, MONTH_SHORT } from '@/lib/types'
 import type { StudentData, FeePayment } from '@/lib/types'
@@ -64,6 +64,57 @@ function getMonthFeeAmount(student: StudentData, month: number, year: number): n
   return dist ? dist.amount : student.monthlyFee
 }
 
+// Calculate adjusted monthly data with carry-forward (same as admin pending-fees)
+// This is a pure calculation function that doesn't depend on React rendering
+function calculateAdjustedMonthly(
+  student: StudentData,
+  feePayments: FeePayment[],
+  sessionYear: number
+) {
+  let carryForward = 0
+  return SESSION_MONTHS.map((m) => {
+    const year = m >= 4 ? sessionYear : sessionYear + 1
+    const payment = feePayments.find(
+      (fp) => fp.month === m && fp.year === year
+    )
+    const baseFee = getMonthFeeAmount(student, m, year)
+
+    // Zero fee month
+    if (baseFee === 0 && !payment) {
+      return { m, year, adjustedDue: 0, paid: 0, baseFee: 0, status: 'none' as const, payment: null }
+    }
+
+    let adjustedDue: number
+    let paid: number
+
+    if (payment && payment.paidAt) {
+      // This month has been paid - use its amountDue (includes carry-forward)
+      adjustedDue = payment.amountDue
+      paid = payment.amountPaid
+      // Update carry-forward for next months
+      carryForward += (paid - adjustedDue)
+    } else {
+      // Unpaid month: apply carry-forward
+      adjustedDue = Math.max(0, baseFee - carryForward)
+      paid = 0
+      carryForward = 0 // Reset since it's been applied
+    }
+
+    let status: 'paid' | 'unpaid' | 'partial' | 'none'
+    if (adjustedDue === 0 && paid === 0) {
+      status = 'none'
+    } else if (paid === 0) {
+      status = 'unpaid'
+    } else if (paid >= adjustedDue) {
+      status = 'paid'
+    } else {
+      status = 'partial'
+    }
+
+    return { m, year, adjustedDue, paid, baseFee, status, payment }
+  })
+}
+
 export default function StudentPanel() {
   const { user, studentView, refreshKey } = useAppStore()
   const [student, setStudent] = useState<StudentData | null>(null)
@@ -77,8 +128,6 @@ export default function StudentPanel() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [changingPassword, setChangingPassword] = useState(false)
-
-  const sessionYear = getSessionYear()
 
   useEffect(() => {
     if (!user) return
@@ -148,6 +197,23 @@ export default function StudentPanel() {
     setChangingPassword(false)
   }
 
+  // Calculate session year (must be before any early returns for hooks)
+  const sessionYearMemo = getSessionYear()
+
+  // Calculate adjusted monthly data with carry-forward (same as admin pending-fees)
+  // Must be before early returns for hooks rules
+  const monthlyAdjusted = useMemo(() => {
+    if (!student) return []
+    return calculateAdjustedMonthly(student, feePayments, sessionYearMemo)
+  }, [student, feePayments, sessionYearMemo])
+
+  // Calculate fee summary (safe even if student is null - will return defaults)
+  const totalPaid = student ? feePayments.reduce((sum, fp) => sum + fp.amountPaid, 0) : 0
+  const remaining = student ? student.totalYearlyFee - totalPaid : 0
+  const completionPercent = student && student.totalYearlyFee > 0
+    ? Math.min(Math.round((totalPaid / student.totalYearlyFee) * 100), 100)
+    : 0
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -172,13 +238,6 @@ export default function StudentPanel() {
     )
   }
 
-  // Calculate fee summary
-  const totalPaid = feePayments.reduce((sum, fp) => sum + fp.amountPaid, 0)
-  const remaining = student.totalYearlyFee - totalPaid
-  const completionPercent = student.totalYearlyFee > 0
-    ? Math.min(Math.round((totalPaid / student.totalYearlyFee) * 100), 100)
-    : 0
-
   // ============ Dashboard View ============
   if (studentView === 'dashboard') {
     return (
@@ -200,7 +259,7 @@ export default function StudentPanel() {
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">
-                Session {sessionYear}-{(sessionYear + 1) % 100}
+                Session {sessionYearMemo}-{(sessionYearMemo + 1) % 100}
               </p>
             </CardContent>
           </Card>
@@ -362,34 +421,28 @@ export default function StudentPanel() {
           </DialogContent>
         </Dialog>
 
-        {/* Monthly Breakdown */}
+        {/* Monthly Breakdown with carry-forward adjustments */}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {SESSION_MONTHS.map((m) => {
-            const year = m >= 4 ? sessionYear : sessionYear + 1
-            const payment = feePayments.find(
-              (fp) => fp.month === m && fp.year === year
-            )
+          {monthlyAdjusted.map(({ m, year, adjustedDue, paid, baseFee, status, payment }) => {
+            // Skip zero-fee months
+            if (status === 'none') return null
 
-            let status: 'paid' | 'unpaid' | 'partial'
             let statusLabel: string
             let statusClass: string
 
-            if (!payment || payment.amountPaid === 0) {
-              status = 'unpaid'
+            if (status === 'unpaid') {
               statusLabel = 'Unpaid'
               statusClass = 'bg-red-500/20 text-red-700 dark:text-red-400 border-red-200'
-            } else if (payment.amountPaid >= payment.amountDue) {
-              status = 'paid'
+            } else if (status === 'paid') {
               statusLabel = 'Paid'
               statusClass = 'bg-green-500/20 text-green-700 dark:text-green-400 border-green-200'
             } else {
-              status = 'partial'
               statusLabel = 'Partial'
               statusClass = 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-200'
             }
 
-            const amountDue = getMonthFeeAmount(student, m, year)
-            const amountPaid = payment?.amountPaid || 0
+            // Show adjustment indicator if adjustedDue differs from baseFee
+            const hasAdjustment = Math.abs(adjustedDue - baseFee) > 0.5 && baseFee > 0
 
             return (
               <Card key={m} className="relative overflow-hidden">
@@ -418,22 +471,30 @@ export default function StudentPanel() {
                 </CardHeader>
                 <CardContent className="pl-4 space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Fee Amount</span>
-                    <span className="font-medium">{formatINR(amountDue)}</span>
+                    <span className="text-muted-foreground">
+                      {hasAdjustment ? 'Adjusted Due' : 'Fee Amount'}
+                    </span>
+                    <span className="font-medium">{formatINR(adjustedDue)}</span>
                   </div>
-                  {payment && (
+                  {hasAdjustment && (
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Base Fee</span>
+                      <span>{formatINR(baseFee)}</span>
+                    </div>
+                  )}
+                  {paid > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Paid</span>
                       <span className="font-medium text-green-600 dark:text-green-400">
-                        {formatINR(amountPaid)}
+                        {formatINR(paid)}
                       </span>
                     </div>
                   )}
-                  {payment && amountPaid < amountDue && (
+                  {paid > 0 && paid < adjustedDue && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Remaining</span>
                       <span className="font-medium text-red-600 dark:text-red-400">
-                        {formatINR(amountDue - amountPaid)}
+                        {formatINR(adjustedDue - paid)}
                       </span>
                     </div>
                   )}
@@ -462,8 +523,8 @@ export default function StudentPanel() {
                             `Student: ${student.name}`,
                             `Class: ${student.className}`,
                             `Month: ${MONTH_NAMES[m]} ${year}`,
-                            `Amount Due: ${formatINR(amountDue)}`,
-                            `Amount Paid: ${formatINR(amountPaid)}`,
+                            `Amount Due: ${formatINR(adjustedDue)}`,
+                            `Amount Paid: ${formatINR(paid)}`,
                             `Payment Mode: ${payment.paymentMode}`,
                             `Slip Number: ${payment.slipNumber || 'N/A'}`,
                             `Date: ${payment.paidAt ? new Date(payment.paidAt).toLocaleDateString('en-IN') : 'N/A'}`,

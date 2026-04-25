@@ -162,7 +162,7 @@ export default function Reports() {
           ) : monthlyData ? (
             <>
               {/* Summary Cards */}
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardDescription className="flex items-center gap-1.5">
@@ -175,7 +175,7 @@ export default function Reports() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground">
-                      {monthlyData.feePaymentCount} payment(s) received
+                      Subject: {formatINR(monthlyData.totalSubjectFees)} + Coaching: {formatINR(monthlyData.totalCoachingFees)}
                     </p>
                   </CardContent>
                 </Card>
@@ -241,6 +241,30 @@ export default function Reports() {
                     >
                       {monthlyData.profitLoss >= 0 ? 'PROFIT' : 'LOSS'}
                     </Badge>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-brand/20 bg-brand/5">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-1.5 text-brand">
+                      <BarChart3 className="h-4 w-4" />
+                      Income Breakdown
+                    </CardDescription>
+                    <CardTitle className="text-sm font-semibold text-brand">
+                      {formatINR(monthlyData.totalSubjectFees)} + {formatINR(monthlyData.totalCoachingFees)}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-xs space-y-0.5">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Subject Fees</span>
+                        <span className="font-medium">{formatINR(monthlyData.totalSubjectFees)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Coaching Fees</span>
+                        <span className="font-medium">{formatINR(monthlyData.totalCoachingFees)}</span>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -410,7 +434,7 @@ export default function Reports() {
           ) : yearlyData ? (
             <>
               {/* Summary Cards */}
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardDescription className="flex items-center gap-1.5">
@@ -423,7 +447,7 @@ export default function Reports() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground">
-                      Session {yearlyData.sessionLabel}
+                      Subject: {formatINR(yearlyData.totalSubjectFees)} + Coaching: {formatINR(yearlyData.totalCoachingFees)}
                     </p>
                   </CardContent>
                 </Card>
@@ -491,6 +515,30 @@ export default function Reports() {
                     </Badge>
                   </CardContent>
                 </Card>
+
+                <Card className="border-brand/20 bg-brand/5">
+                  <CardHeader className="pb-2">
+                    <CardDescription className="flex items-center gap-1.5 text-brand">
+                      <BarChart3 className="h-4 w-4" />
+                      Income Breakdown
+                    </CardDescription>
+                    <CardTitle className="text-sm font-semibold text-brand">
+                      {formatINR(yearlyData.totalSubjectFees)} + {formatINR(yearlyData.totalCoachingFees)}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-xs space-y-0.5">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Subject Fees</span>
+                        <span className="font-medium">{formatINR(yearlyData.totalSubjectFees)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Coaching Fees</span>
+                        <span className="font-medium">{formatINR(yearlyData.totalCoachingFees)}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
 
               {/* Monthly Breakdown Table */}
@@ -507,7 +555,9 @@ export default function Reports() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Month</TableHead>
-                          <TableHead className="text-right">Fees Received</TableHead>
+                          <TableHead className="text-right">Income</TableHead>
+                          <TableHead className="text-right">Subject Fees</TableHead>
+                          <TableHead className="text-right">Coaching Fees</TableHead>
                           <TableHead className="text-right">Expenses</TableHead>
                           <TableHead className="text-right">Salary</TableHead>
                           <TableHead className="text-right">Profit/Loss</TableHead>
@@ -521,6 +571,12 @@ export default function Reports() {
                             </TableCell>
                             <TableCell className="text-right text-green-600 dark:text-green-400">
                               {formatINR(row.fees)}
+                            </TableCell>
+                            <TableCell className="text-right text-green-700 dark:text-green-300 text-xs">
+                              {formatINR(row.subjectFees)}
+                            </TableCell>
+                            <TableCell className="text-right text-green-700 dark:text-green-300 text-xs">
+                              {formatINR(row.coachingFees)}
                             </TableCell>
                             <TableCell className="text-right text-orange-600 dark:text-orange-400">
                               {formatINR(row.expenses)}
@@ -544,6 +600,12 @@ export default function Reports() {
                           <TableCell>Total</TableCell>
                           <TableCell className="text-right text-green-600 dark:text-green-400">
                             {formatINR(yearlyData.totalFeesReceived)}
+                          </TableCell>
+                          <TableCell className="text-right text-green-700 dark:text-green-300 text-xs">
+                            {formatINR(yearlyData.totalSubjectFees)}
+                          </TableCell>
+                          <TableCell className="text-right text-green-700 dark:text-green-300 text-xs">
+                            {formatINR(yearlyData.totalCoachingFees)}
                           </TableCell>
                           <TableCell className="text-right text-orange-600 dark:text-orange-400">
                             {formatINR(yearlyData.totalExpenses)}

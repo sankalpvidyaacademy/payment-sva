@@ -93,6 +93,8 @@ export interface MonthlyReport {
   month: number
   year: number
   totalFeesReceived: number
+  totalSubjectFees: number
+  totalCoachingFees: number
   totalExpenses: number
   totalSalaryPaid: number
   profitLoss: number
@@ -106,6 +108,8 @@ export interface YearlyReport {
   sessionYear: number
   sessionLabel: string
   totalFeesReceived: number
+  totalSubjectFees: number
+  totalCoachingFees: number
   totalExpenses: number
   totalSalaryPaid: number
   profitLoss: number
@@ -114,6 +118,8 @@ export interface YearlyReport {
     year: number
     monthName: string
     fees: number
+    subjectFees: number
+    coachingFees: number
     expenses: number
     salary: number
     profitLoss: number

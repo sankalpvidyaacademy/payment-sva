@@ -104,3 +104,22 @@ Stage Summary:
 - Fixed variable declaration order (sessionYear → getAdjustedMonthData → currentMonthDue) ✓
 - Added error safety in payment flow ✓
 - Pay button should now work without crashing ✓
+
+---
+Task ID: 7
+Agent: Main Agent
+Task: PRD Update - Pending Fees, Student Sync, Teacher UI, Fee Slip, Reports
+
+Work Log:
+- Fix 1: Pending Fees Total Calculation - Changed `remaining = totalDue - totalPaid` to `remaining = student.totalYearlyFee - totalPaid` in both desktop and mobile views of pending-fees.tsx. Adjusted monthly values are for display only, NOT for total calculation.
+- Fix 2: Student Dashboard Fee Details Sync - Added `calculateAdjustedMonthly()` pure function and `useMemo` hook to student-panel.tsx. Monthly breakdown now shows adjusted due amounts with carry-forward, matching admin pending-fees view. Shows "Adjusted Due" label and base fee comparison when adjustment exists.
+- Fix 3: Teacher Dashboard UI Fix - Moved Monthly Salary Status from inline card to Dialog/Modal. Added "View Monthly Salary" button on dashboard. Modal includes month-wise salary status, paid/expected badges, and "View Full Salary History" quick action. Added Receipt icon import.
+- Fix 4: Fee Slip Monthly Update - After successful fee payment, now fetches fresh student data from API before showing fee slip. This ensures the monthly breakdown shows updated values including the just-made payment.
+- Fix 5: Reports Module Total Income Update - Added `totalSubjectFees` and `totalCoachingFees` breakdown to monthly and yearly report APIs. Uses proportional ratio calculation based on each student's subject fees vs coaching fee. Updated TypeScript types (MonthlyReport, YearlyReport). Updated reports.tsx frontend to show 5-card layout with Income Breakdown card showing Subject Fees + Coaching Fees. Yearly breakdown table now includes Subject Fees and Coaching Fees columns.
+
+Stage Summary:
+- Pending fees total = Total Yearly Fee – Total Paid (not adjusted monthly values) ✓
+- Student dashboard synced with admin view (adjusted carry-forward values) ✓
+- Teacher dashboard clean - Monthly Salary Status moved to modal ✓
+- Fee slip shows real-time updated data after payment ✓
+- Reports show Total Income = Subject Fees + Coaching Fees with breakdown ✓

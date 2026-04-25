@@ -221,6 +221,17 @@ export function FeeCollection() {
       }
       const payment = await res.json()
       setLastPayment(payment)
+
+      // Fetch fresh student data so fee slip shows updated monthly values
+      const freshRes = await fetch('/api/students')
+      if (freshRes.ok) {
+        const freshStudents: StudentData[] = await freshRes.json()
+        const freshStudent = freshStudents.find((s) => s.id === selectedStudent.id)
+        if (freshStudent) {
+          setSelectedStudent(freshStudent)
+        }
+      }
+
       toast.success('Fee collected successfully!', {
         description: `Slip No: ${payment.slipNumber}`,
       })

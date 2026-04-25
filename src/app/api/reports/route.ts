@@ -61,7 +61,44 @@ async function getMonthlyReport(searchParams: URLSearchParams) {
   // Total fees received for this month
   const feePayments = await db.feePayment.findMany({
     where: { month, year },
+    include: {
+      student: {
+        select: {
+          id: true,
+          monthlyFee: true,
+          totalYearlyFee: true,
+          coachingFee: true,
+          subjectFees: true,
+          monthlyFeeDistributions: true,
+        },
+      },
+    },
   });
+
+  // Calculate total income with subject fees + coaching fees breakdown
+  let totalSubjectFees = 0;
+  let totalCoachingFees = 0;
+
+  feePayments.forEach((fp) => {
+    const student = fp.student;
+    // Calculate this student's total yearly subject fees
+    const studentSubjectTotal = student.subjectFees.reduce(
+      (sum, sf) => sum + sf.yearlyFee,
+      0
+    );
+    // Calculate this student's coaching fee
+    const studentCoachingFee = student.coachingFee || 0;
+    // Total yearly fee for this student
+    const studentTotalYearly = student.totalYearlyFee || 1; // avoid div by zero
+
+    // Proportion of this payment that is subject fees vs coaching fees
+    const subjectRatio = studentSubjectTotal / studentTotalYearly;
+    const coachingRatio = studentCoachingFee / studentTotalYearly;
+
+    totalSubjectFees += Math.round(fp.amountPaid * subjectRatio);
+    totalCoachingFees += Math.round(fp.amountPaid * coachingRatio);
+  });
+
   const totalFeesReceived = feePayments.reduce(
     (sum, fp) => sum + fp.amountPaid,
     0
@@ -89,6 +126,8 @@ async function getMonthlyReport(searchParams: URLSearchParams) {
     month,
     year,
     totalFeesReceived,
+    totalSubjectFees,
+    totalCoachingFees,
     totalExpenses,
     totalSalaryPaid,
     profitLoss,
@@ -113,6 +152,8 @@ async function getYearlyReport(searchParams: URLSearchParams) {
 
   // Aggregate data for all months in the session
   let totalFeesReceived = 0;
+  let totalSubjectFees = 0;
+  let totalCoachingFees = 0;
   let totalExpenses = 0;
   let totalSalaryPaid = 0;
 
@@ -121,8 +162,37 @@ async function getYearlyReport(searchParams: URLSearchParams) {
   for (const { month, year: y } of sessionMonths) {
     const feePayments = await db.feePayment.findMany({
       where: { month, year: y },
+      include: {
+        student: {
+          select: {
+            id: true,
+            monthlyFee: true,
+            totalYearlyFee: true,
+            coachingFee: true,
+            subjectFees: true,
+            monthlyFeeDistributions: true,
+          },
+        },
+      },
     });
     const monthFees = feePayments.reduce((sum, fp) => sum + fp.amountPaid, 0);
+
+    // Calculate subject fees + coaching fees breakdown for this month
+    let monthSubjectFees = 0;
+    let monthCoachingFees = 0;
+    feePayments.forEach((fp) => {
+      const student = fp.student;
+      const studentSubjectTotal = student.subjectFees.reduce(
+        (sum, sf) => sum + sf.yearlyFee,
+        0
+      );
+      const studentCoachingFee = student.coachingFee || 0;
+      const studentTotalYearly = student.totalYearlyFee || 1;
+      const subjectRatio = studentSubjectTotal / studentTotalYearly;
+      const coachingRatio = studentCoachingFee / studentTotalYearly;
+      monthSubjectFees += Math.round(fp.amountPaid * subjectRatio);
+      monthCoachingFees += Math.round(fp.amountPaid * coachingRatio);
+    });
 
     const expenses = await db.expense.findMany({
       where: { month, year: y },
@@ -138,6 +208,8 @@ async function getYearlyReport(searchParams: URLSearchParams) {
     );
 
     totalFeesReceived += monthFees;
+    totalSubjectFees += monthSubjectFees;
+    totalCoachingFees += monthCoachingFees;
     totalExpenses += monthExpenses;
     totalSalaryPaid += monthSalary;
 
@@ -151,6 +223,8 @@ async function getYearlyReport(searchParams: URLSearchParams) {
       year: y,
       monthName: monthNames[month],
       fees: monthFees,
+      subjectFees: monthSubjectFees,
+      coachingFees: monthCoachingFees,
       expenses: monthExpenses,
       salary: monthSalary,
       profitLoss: monthFees - monthExpenses - monthSalary,
@@ -164,6 +238,8 @@ async function getYearlyReport(searchParams: URLSearchParams) {
     sessionYear: year,
     sessionLabel: `${year}-${(year + 1) % 100}`,
     totalFeesReceived,
+    totalSubjectFees,
+    totalCoachingFees,
     totalExpenses,
     totalSalaryPaid,
     profitLoss,

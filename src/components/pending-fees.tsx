@@ -265,18 +265,17 @@ export default function PendingFees() {
                     </TableRow>
                   ) : (
                     filteredStudents.map((student) => {
-                      // Calculate total remaining
+                      // Total Pending = Total Yearly Fee – Total Paid Amount
+                      // Do NOT include adjusted monthly values in total calculation
                       let totalPaid = 0
-                      let totalDue = 0
                       SESSION_MONTHS.forEach((m) => {
                         const key = `${m}-${m >= 4 ? sessionYear : sessionYear + 1}`
                         const md = student.monthlyData[key]
                         if (md) {
                           totalPaid += md.amountPaid
-                          totalDue += md.amountDue
                         }
                       })
-                      const remaining = totalDue - totalPaid
+                      const remaining = student.totalYearlyFee - totalPaid
 
                       return (
                         <TableRow key={student.id}>
@@ -356,18 +355,17 @@ export default function PendingFees() {
           </Card>
         ) : (
           filteredStudents.map((student) => {
-            // Calculate totals
+            // Total Pending = Total Yearly Fee – Total Paid Amount
+            // Do NOT include adjusted monthly values in total calculation
             let totalPaid = 0
-            let totalDue = 0
             SESSION_MONTHS.forEach((m) => {
               const key = `${m}-${m >= 4 ? sessionYear : sessionYear + 1}`
               const md = student.monthlyData[key]
               if (md) {
                 totalPaid += md.amountPaid
-                totalDue += md.amountDue
               }
             })
-            const remaining = totalDue - totalPaid
+            const remaining = student.totalYearlyFee - totalPaid
             const isExpanded = expandedCards.has(student.id)
 
             return (

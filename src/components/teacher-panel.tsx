@@ -31,6 +31,7 @@ import {
   IndianRupee,
   Calendar,
   Clock,
+  Receipt,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -182,6 +183,7 @@ export default function TeacherPanel() {
   const [loading, setLoading] = useState(true)
   const [slipDialogOpen, setSlipDialogOpen] = useState(false)
   const [selectedSlip, setSelectedSlip] = useState<SalaryPayment | null>(null)
+  const [salaryModalOpen, setSalaryModalOpen] = useState(false)
 
   // Password form
   const [oldPassword, setOldPassword] = useState('')
@@ -477,82 +479,108 @@ export default function TeacherPanel() {
           </CardContent>
         </Card>
 
-        {/* Monthly Salary Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-brand" />
-              Monthly Salary Status
-            </CardTitle>
-            <CardDescription>April {sessionYear} - March {sessionYear + 1}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="max-h-96">
-              <div className="space-y-2">
-                {SESSION_MONTHS.map((m) => {
-                  const year = m >= 4 ? sessionYear : sessionYear + 1
-                  const payment = salaryPayments.find(
-                    (sp) => sp.month === m && sp.year === year
-                  )
-                  const isPaid = !!payment
-                  const isCurrentMonth = m === currentMonth
+        {/* View Monthly Salary Button */}
+        <Button
+          className="w-full gap-2 bg-brand hover:bg-brand/90"
+          onClick={() => setSalaryModalOpen(true)}
+        >
+          <Calendar className="h-4 w-4" />
+          View Monthly Salary
+        </Button>
 
-                  return (
-                    <div
-                      key={m}
-                      className={`flex items-center justify-between rounded-lg border px-4 py-3 transition-colors ${
-                        isCurrentMonth
-                          ? 'border-brand/50 bg-brand/5 dark:bg-brand/10'
-                          : isPaid
-                          ? 'border-green-200 bg-green-50/50 dark:border-green-900/30 dark:bg-green-950/20'
-                          : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-2.5 h-2.5 rounded-full ${
-                            isPaid
-                              ? 'bg-green-500'
-                              : isCurrentMonth
-                              ? 'bg-brand animate-pulse'
-                              : 'bg-orange-400'
-                          }`}
-                        />
-                        <span className={`font-medium text-sm ${isCurrentMonth ? 'text-brand' : ''}`}>
-                          {MONTH_NAMES[m]} {year}
-                          {isCurrentMonth && (
-                            <span className="ml-1.5 text-xs font-normal text-brand/70">(Current)</span>
-                          )}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className={`text-sm tabular-nums ${
+        {/* Monthly Salary Status Modal */}
+        <Dialog open={salaryModalOpen} onOpenChange={setSalaryModalOpen}>
+          <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-brand" />
+                Monthly Salary Status
+              </DialogTitle>
+              <DialogDescription>
+                April {sessionYear} - March {sessionYear + 1}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              {SESSION_MONTHS.map((m) => {
+                const year = m >= 4 ? sessionYear : sessionYear + 1
+                const payment = salaryPayments.find(
+                  (sp) => sp.month === m && sp.year === year
+                )
+                const isPaid = !!payment
+                const isCurrentMonth = m === currentMonth
+
+                return (
+                  <div
+                    key={m}
+                    className={`flex items-center justify-between rounded-lg border px-4 py-3 transition-colors ${
+                      isCurrentMonth
+                        ? 'border-brand/50 bg-brand/5 dark:bg-brand/10'
+                        : isPaid
+                        ? 'border-green-200 bg-green-50/50 dark:border-green-900/30 dark:bg-green-950/20'
+                        : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-2.5 h-2.5 rounded-full ${
                           isPaid
-                            ? 'text-green-700 dark:text-green-400 font-medium'
-                            : 'text-muted-foreground'
-                        }`}>
-                          {isPaid ? formatINR(payment.amount) : formatINR(Math.round(monthlySalary))}
-                        </span>
-                        <Badge
-                          variant={isPaid ? 'default' : 'outline'}
-                          className={
-                            isPaid
-                              ? 'bg-green-500/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800'
-                              : isCurrentMonth
-                              ? 'bg-brand/10 text-brand border-brand/30'
-                              : 'bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800'
-                          }
-                        >
-                          {isPaid ? 'Paid' : isCurrentMonth ? 'Current' : 'Expected'}
-                        </Badge>
-                      </div>
+                            ? 'bg-green-500'
+                            : isCurrentMonth
+                            ? 'bg-brand animate-pulse'
+                            : 'bg-orange-400'
+                        }`}
+                      />
+                      <span className={`font-medium text-sm ${isCurrentMonth ? 'text-brand' : ''}`}>
+                        {MONTH_NAMES[m]} {year}
+                        {isCurrentMonth && (
+                          <span className="ml-1.5 text-xs font-normal text-brand/70">(Current)</span>
+                        )}
+                      </span>
                     </div>
-                  )
-                })}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-sm tabular-nums ${
+                        isPaid
+                          ? 'text-green-700 dark:text-green-400 font-medium'
+                          : 'text-muted-foreground'
+                      }`}>
+                        {isPaid ? formatINR(payment.amount) : formatINR(Math.round(monthlySalary))}
+                      </span>
+                      <Badge
+                        variant={isPaid ? 'default' : 'outline'}
+                        className={
+                          isPaid
+                            ? 'bg-green-500/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800'
+                            : isCurrentMonth
+                            ? 'bg-brand/10 text-brand border-brand/30'
+                            : 'bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800'
+                        }
+                      >
+                        {isPaid ? 'Paid' : isCurrentMonth ? 'Current' : 'Expected'}
+                      </Badge>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {/* Salary Slip Option in Modal */}
+            <div className="pt-2 border-t">
+              <p className="text-xs text-muted-foreground mb-2">Quick Actions</p>
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => {
+                  setSalaryModalOpen(false)
+                  // Navigate to salary view if available
+                  const { setTeacherView } = useAppStore.getState()
+                  setTeacherView('salary')
+                }}
+              >
+                <Receipt className="h-4 w-4" />
+                View Full Salary History
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Student Contribution Section */}
         <Card>
