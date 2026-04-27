@@ -58,6 +58,8 @@ import {
   MONTH_NAMES,
   MONTH_SHORT,
   SESSION_MONTHS,
+  subjectsMatch,
+  CLASS_4_8_SUBJECTS,
 } from '@/lib/types'
 import type { TeacherData, StudentData, SalaryPayment, FeePayment } from '@/lib/types'
 
@@ -171,8 +173,9 @@ export function SalaryManagement() {
         )
         if (!classMapping || classMapping.subjects.length === 0) return false
         // Student must share at least one subject with the teacher in this class
+        // Uses backward-compatible matching (legacy "All Subjects" matches any 4-8 subject)
         const studentSubjects = s.subjects || []
-        return studentSubjects.some((sub) => classMapping.subjects.includes(sub))
+        return subjectsMatch(studentSubjects, classMapping.subjects)
       })
 
       // Total Yearly Earning = sum of ONLY the fees for subjects the teacher teaches
@@ -184,10 +187,14 @@ export function SalaryManagement() {
         if (!classMapping) return sum
 
         // Only count subject fees for subjects the teacher teaches
+        // Backward compat: "All Subjects" fee matches if teacher teaches any 4-8 subject
         const teacherSubjects = classMapping.subjects
-        const relevantSubjectFees = s.subjectFees.filter((sf) =>
-          teacherSubjects.includes(sf.subject)
-        )
+        const teacherHas48Subjects = teacherSubjects.some((t) => CLASS_4_8_SUBJECTS.includes(t))
+        const relevantSubjectFees = s.subjectFees.filter((sf) => {
+          if (teacherSubjects.includes(sf.subject)) return true
+          if (sf.subject === 'All Subjects' && teacherHas48Subjects) return true
+          return false
+        })
         const subjectFeeTotal = relevantSubjectFees.reduce((s2, sf) => s2 + sf.yearlyFee, 0)
 
         // Coaching fee is NOT included in teacher earnings per PRD
@@ -823,9 +830,12 @@ export function SalaryManagement() {
                             (cs) => cs.className === s.className
                           )
                           const teacherSubjects = classMapping?.subjects || []
-                          const relevantFees = s.subjectFees.filter((sf) =>
-                            teacherSubjects.includes(sf.subject)
-                          )
+                          const teacherHas48Subjects = teacherSubjects.some((t) => CLASS_4_8_SUBJECTS.includes(t))
+                          const relevantFees = s.subjectFees.filter((sf) => {
+                            if (teacherSubjects.includes(sf.subject)) return true
+                            if (sf.subject === 'All Subjects' && teacherHas48Subjects) return true
+                            return false
+                          })
                           return relevantFees.map((sf, idx) => (
                             <TableRow key={`${s.id}-${sf.id}`}>
                               {idx === 0 ? (
@@ -855,9 +865,12 @@ export function SalaryManagement() {
                         (cs) => cs.className === s.className
                       )
                       const teacherSubjects = classMapping?.subjects || []
-                      const relevantFees = s.subjectFees.filter((sf) =>
-                        teacherSubjects.includes(sf.subject)
-                      )
+                      const teacherHas48Subjects = teacherSubjects.some((t) => CLASS_4_8_SUBJECTS.includes(t))
+                      const relevantFees = s.subjectFees.filter((sf) => {
+                        if (teacherSubjects.includes(sf.subject)) return true
+                        if (sf.subject === 'All Subjects' && teacherHas48Subjects) return true
+                        return false
+                      })
                       return (
                         <div key={s.id} className="rounded-lg border p-2.5 space-y-1.5">
                           <div className="flex justify-between items-center">
