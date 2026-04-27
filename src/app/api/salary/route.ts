@@ -1,37 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb, generateId, toTimestamp, fromTimestamp, admin } from '@/lib/firebase-admin';
+import { notifyDataChange } from '@/lib/realtime-notify';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const teacherId = searchParams.get('teacherId');
 
-    const where: Record<string, unknown> = {};
-    if (teacherId) where.teacherId = teacherId;
+    // Build Firestore query
+    let query = getDb().collection('salaryPayments') as admin.firestore.Query;
 
-    const salaryPayments = await db.salaryPayment.findMany({
-      where,
-      include: {
-        teacher: {
-          select: {
-            id: true,
-            name: true,
-            classes: true,
-            subjects: true,
-          },
-        },
-      },
-      orderBy: [{ year: 'desc' }, { month: 'asc' }],
-    });
+    if (teacherId) query = query.where('teacherId', '==', teacherId);
 
-    const result = salaryPayments.map((sp) => ({
-      ...sp,
-      teacher: {
-        ...sp.teacher,
-        classes: JSON.parse(sp.teacher.classes),
-        subjects: JSON.parse(sp.teacher.subjects),
-      },
-    }));
+    const salaryPaymentsSnapshot = await query.get();
+
+    const result = [];
+    for (const doc of salaryPaymentsSnapshot.docs) {
+      const data = doc.data();
+
+      // Fetch teacher info
+      let teacher = null;
+      if (data.teacherId) {
+        const teacherDoc = await getDb().collection('teachers').doc(data.teacherId).get();
+        if (teacherDoc.exists) {
+          const tData = teacherDoc.data()!;
+          teacher = {
+            id: teacherDoc.id,
+            name: tData.name,
+            classes: tData.classes, // native array, no JSON.parse
+            subjects: tData.subjects, // native array, no JSON.parse
+          };
+        }
+      }
+
+      result.push({
+        id: doc.id,
+        teacherId: data.teacherId,
+        month: data.month,
+        year: data.year,
+        totalYearlyEarning: data.totalYearlyEarning,
+        totalReceivedFees: data.totalReceivedFees,
+        amount: data.amount,
+        paymentMode: data.paymentMode,
+        paidAt: fromTimestamp(data.paidAt),
+        createdAt: fromTimestamp(data.createdAt),
+        teacher,
+      });
+    }
+
+    // Sort by year desc, then month asc (replacing Firestore orderBy)
+    result.sort((a, b) => b.year - a.year || a.month - b.month);
 
     return NextResponse.json(result);
   } catch (error) {
@@ -63,19 +81,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const teacher = await db.teacher.findUnique({
-      where: { id: teacherId },
-    });
-
-    if (!teacher) {
+    // Check teacher exists
+    const teacherDoc = await getDb().collection('teachers').doc(teacherId).get();
+    if (!teacherDoc.exists) {
       return NextResponse.json(
         { error: 'Teacher not found' },
         { status: 404 }
       );
     }
+    const teacherData = teacherDoc.data()!;
 
-    const salaryPayment = await db.salaryPayment.create({
-      data: {
+    // Create salary payment
+    const salaryPaymentId = generateId();
+    const paidAtDate = new Date();
+    await getDb().collection('salaryPayments').doc(salaryPaymentId).set({
+      teacherId,
+      month: parseInt(String(month)),
+      year: parseInt(String(year)),
+      totalYearlyEarning: parseFloat(String(totalYearlyEarning || 0)),
+      totalReceivedFees: parseFloat(String(totalReceivedFees || 0)),
+      amount: parseFloat(String(amount)),
+      paymentMode: paymentMode || 'Offline',
+      paidAt: toTimestamp(paidAtDate),
+      createdAt: toTimestamp(new Date()),
+    });
+
+    await notifyDataChange('salaryPayments', 'create');
+
+    return NextResponse.json(
+      {
+        id: salaryPaymentId,
         teacherId,
         month: parseInt(String(month)),
         year: parseInt(String(year)),
@@ -83,27 +118,13 @@ export async function POST(request: NextRequest) {
         totalReceivedFees: parseFloat(String(totalReceivedFees || 0)),
         amount: parseFloat(String(amount)),
         paymentMode: paymentMode || 'Offline',
-        paidAt: new Date(),
-      },
-      include: {
+        paidAt: paidAtDate.toISOString(),
+        createdAt: null, // server timestamp not yet resolved
         teacher: {
-          select: {
-            id: true,
-            name: true,
-            classes: true,
-            subjects: true,
-          },
-        },
-      },
-    });
-
-    return NextResponse.json(
-      {
-        ...salaryPayment,
-        teacher: {
-          ...salaryPayment.teacher,
-          classes: JSON.parse(salaryPayment.teacher.classes),
-          subjects: JSON.parse(salaryPayment.teacher.subjects),
+          id: teacherDoc.id,
+          name: teacherData.name,
+          classes: teacherData.classes, // native array, no JSON.parse
+          subjects: teacherData.subjects, // native array, no JSON.parse
         },
       },
       { status: 201 }

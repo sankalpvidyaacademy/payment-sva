@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb, generateId, toTimestamp } from '@/lib/firebase-admin';
 import { hashSync } from 'bcryptjs';
 
 export async function GET() {
   try {
-    const admin = await db.user.findFirst({
-      where: { role: 'ADMIN' },
-    });
+    const snapshot = await getDb()
+      .collection('users')
+      .where('role', '==', 'ADMIN')
+      .limit(1)
+      .get();
 
-    if (admin) {
+    if (!snapshot.empty) {
       return NextResponse.json({
         initialized: true,
         message: 'Admin already exists',
@@ -16,24 +18,26 @@ export async function GET() {
     }
 
     const hashedPassword = hashSync('Shobhit@1502', 10);
+    const id = generateId();
+    const now = toTimestamp(new Date())!;
 
-    const newAdmin = await db.user.create({
-      data: {
-        username: 'shobhit',
-        password: hashedPassword,
-        role: 'ADMIN',
-        name: 'Shobhit',
-      },
+    await getDb().collection('users').doc(id).set({
+      username: 'shobhit',
+      password: hashedPassword,
+      role: 'ADMIN',
+      name: 'Shobhit',
+      createdAt: now,
+      updatedAt: now,
     });
 
     return NextResponse.json({
       initialized: true,
       message: 'Default admin created',
       user: {
-        id: newAdmin.id,
-        username: newAdmin.username,
-        role: newAdmin.role,
-        name: newAdmin.name,
+        id,
+        username: 'shobhit',
+        role: 'ADMIN',
+        name: 'Shobhit',
       },
     });
   } catch (error) {

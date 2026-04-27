@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from 'react'
 import { useAppStore } from '@/lib/store'
+import { useRealtimeSync } from '@/hooks/use-realtime'
 import Login from '@/components/login'
 import AppLayout from '@/components/app-layout'
 import { AdminDashboard } from '@/components/admin-dashboard'
@@ -54,6 +55,9 @@ function useIsHydrated() {
 export default function Home() {
   const { user, adminView, teacherView, studentView } = useAppStore()
   const hydrated = useIsHydrated()
+
+  // Initialize real-time sync via Socket.io
+  useRealtimeSync()
 
   // Wait for zustand persist to rehydrate from localStorage to avoid SSR mismatch
   if (!hydrated) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb, generateId, toTimestamp, fromTimestamp } from '@/lib/firebase-admin';
+import { notifyDataChange } from '@/lib/realtime-notify';
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,13 +8,35 @@ export async function GET(request: NextRequest) {
     const month = searchParams.get('month');
     const year = searchParams.get('year');
 
-    const where: Record<string, unknown> = {};
-    if (month) where.month = parseInt(month);
-    if (year) where.year = parseInt(year);
+    const snapshot = await getDb().collection('expenses').get();
 
-    const expenses = await db.expense.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
+    let expenses = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        month: data.month,
+        year: data.year,
+        amount: data.amount,
+        purpose: data.purpose,
+        createdAt: fromTimestamp(data.createdAt),
+      };
+    });
+
+    // Filter by month/year in-memory
+    if (month) {
+      const monthInt = parseInt(month);
+      expenses = expenses.filter((e) => e.month === monthInt);
+    }
+    if (year) {
+      const yearInt = parseInt(year);
+      expenses = expenses.filter((e) => e.year === yearInt);
+    }
+
+    // Sort by createdAt descending (replacing Firestore orderBy)
+    expenses.sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
     });
 
     return NextResponse.json(expenses);
@@ -38,14 +61,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const expense = await db.expense.create({
-      data: {
-        month: parseInt(String(month)),
-        year: parseInt(String(year)),
-        amount: parseFloat(String(amount)),
-        purpose,
-      },
-    });
+    const id = generateId();
+    const expenseData = {
+      month: parseInt(String(month)),
+      year: parseInt(String(year)),
+      amount: parseFloat(String(amount)),
+      purpose,
+      createdAt: toTimestamp(new Date()),
+    };
+
+    await getDb().collection('expenses').doc(id).set(expenseData);
+
+    const expense = {
+      id,
+      month: expenseData.month,
+      year: expenseData.year,
+      amount: expenseData.amount,
+      purpose: expenseData.purpose,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Notify realtime clients
+    notifyDataChange('expenses', 'create', id);
 
     return NextResponse.json(expense, { status: 201 });
   } catch (error) {
@@ -69,20 +106,20 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const expense = await db.expense.findUnique({
-      where: { id },
-    });
+    const docRef = getDb().collection('expenses').doc(id);
+    const doc = await docRef.get();
 
-    if (!expense) {
+    if (!doc.exists) {
       return NextResponse.json(
         { error: 'Expense not found' },
         { status: 404 }
       );
     }
 
-    await db.expense.delete({
-      where: { id },
-    });
+    await docRef.delete();
+
+    // Notify realtime clients
+    notifyDataChange('expenses', 'delete', id);
 
     return NextResponse.json({ message: 'Expense deleted successfully' });
   } catch (error) {

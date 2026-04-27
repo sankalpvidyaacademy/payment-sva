@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/firebase-admin';
 import { compareSync, hashSync } from 'bcryptjs';
 
 export async function POST(request: NextRequest) {
@@ -13,18 +13,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = await db.user.findUnique({
-      where: { username },
-      select: {
-        id: true,
-        username: true,
-        password: true,
-        role: true,
-        name: true,
-      },
-    });
+    const snapshot = await getDb()
+      .collection('users')
+      .where('username', '==', username)
+      .get();
 
-    if (!user || !compareSync(password, user.password)) {
+    if (snapshot.empty) {
+      return NextResponse.json(
+        { error: 'Invalid username or password' },
+        { status: 401 }
+      );
+    }
+
+    const userDoc = snapshot.docs[0];
+    const userData = userDoc.data();
+
+    if (!compareSync(password, userData.password)) {
       return NextResponse.json(
         { error: 'Invalid username or password' },
         { status: 401 }
@@ -32,10 +36,10 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      id: user.id,
-      username: user.username,
-      role: user.role,
-      name: user.name,
+      id: userDoc.id,
+      username: userData.username,
+      role: userData.role,
+      name: userData.name,
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -57,15 +61,15 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const user = await db.user.findUnique({
-      where: { id: userId },
-    });
+    const userDoc = await getDb().collection('users').doc(userId).get();
 
-    if (!user) {
+    if (!userDoc.exists) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    if (!compareSync(oldPassword, user.password)) {
+    const userData = userDoc.data()!;
+
+    if (!compareSync(oldPassword, userData.password)) {
       return NextResponse.json(
         { error: 'Old password is incorrect' },
         { status: 401 }
@@ -74,9 +78,8 @@ export async function PUT(request: NextRequest) {
 
     const hashedPassword = hashSync(newPassword, 10);
 
-    await db.user.update({
-      where: { id: userId },
-      data: { password: hashedPassword },
+    await getDb().collection('users').doc(userId).update({
+      password: hashedPassword,
     });
 
     return NextResponse.json({ message: 'Password changed successfully' });

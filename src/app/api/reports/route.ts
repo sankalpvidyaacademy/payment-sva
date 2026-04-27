@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb, fromTimestamp } from '@/lib/firebase-admin';
 
 // Academic session months in order: April(4) through March(3)
 const SESSION_MONTHS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3];
@@ -19,6 +19,41 @@ function getSessionMonths(sessionYear: number): Array<{ month: number; year: num
     month: m,
     year: m >= 4 ? sessionYear : sessionYear + 1,
   }));
+}
+
+// Helper: fetch a student document by ID with subjectFees and monthlyFeeDistributions
+async function fetchStudentWithRelations(studentId: string) {
+  const studentDoc = await getDb().collection('students').doc(studentId).get();
+  if (!studentDoc.exists) return null;
+  const studentData = studentDoc.data()!;
+
+  // Fetch subjectFees sub-collection for this student
+  const subjectFeesSnapshot = await getDb().collection('subjectFees')
+    .where('studentId', '==', studentId)
+    .get();
+  const subjectFees = subjectFeesSnapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+
+  // Fetch monthlyFeeDistributions sub-collection for this student
+  const monthlyFeeDistributionsSnapshot = await getDb().collection('monthlyFeeDistributions')
+    .where('studentId', '==', studentId)
+    .get();
+  const monthlyFeeDistributions = monthlyFeeDistributionsSnapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+
+  return {
+    id: studentDoc.id,
+    monthlyFee: studentData.monthlyFee,
+    totalYearlyFee: studentData.totalYearlyFee,
+    coachingFee: studentData.coachingFee,
+    subjects: studentData.subjects, // native array
+    subjectFees,
+    monthlyFeeDistributions,
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -59,31 +94,43 @@ async function getMonthlyReport(searchParams: URLSearchParams) {
   }
 
   // Total fees received for this month
-  const feePayments = await db.feePayment.findMany({
-    where: { month, year },
-    include: {
-      student: {
-        select: {
-          id: true,
-          monthlyFee: true,
-          totalYearlyFee: true,
-          coachingFee: true,
-          subjectFees: true,
-          monthlyFeeDistributions: true,
-        },
+  const feePaymentsSnapshot = await getDb().collection('feePayments')
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .get();
+
+  const feePayments = feePaymentsSnapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+
+  // Fetch student data for each feePayment
+  const feePaymentsWithStudent = [];
+  for (const fp of feePayments) {
+    const student = await fetchStudentWithRelations(fp.studentId);
+    feePaymentsWithStudent.push({
+      ...fp,
+      student: student || {
+        id: fp.studentId,
+        monthlyFee: 0,
+        totalYearlyFee: 0,
+        coachingFee: 0,
+        subjects: [],
+        subjectFees: [],
+        monthlyFeeDistributions: [],
       },
-    },
-  });
+    });
+  }
 
   // Calculate total income with subject fees + coaching fees breakdown
   let totalSubjectFees = 0;
   let totalCoachingFees = 0;
 
-  feePayments.forEach((fp) => {
+  feePaymentsWithStudent.forEach((fp) => {
     const student = fp.student;
     // Calculate this student's total yearly subject fees
     const studentSubjectTotal = student.subjectFees.reduce(
-      (sum, sf) => sum + sf.yearlyFee,
+      (sum: number, sf: { yearlyFee: number }) => sum + sf.yearlyFee,
       0
     );
     // Calculate this student's coaching fee
@@ -99,23 +146,27 @@ async function getMonthlyReport(searchParams: URLSearchParams) {
     totalCoachingFees += Math.round(fp.amountPaid * coachingRatio);
   });
 
-  const totalFeesReceived = feePayments.reduce(
+  const totalFeesReceived = feePaymentsWithStudent.reduce(
     (sum, fp) => sum + fp.amountPaid,
     0
   );
 
   // Total expenses for this month
-  const expenses = await db.expense.findMany({
-    where: { month, year },
-  });
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const expensesSnapshot = await getDb().collection('expenses')
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .get();
+  const expenses = expensesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const totalExpenses = expenses.reduce((sum, e) => sum + (e as { amount: number }).amount, 0);
 
   // Total salary paid for this month
-  const salaryPayments = await db.salaryPayment.findMany({
-    where: { month, year },
-  });
+  const salaryPaymentsSnapshot = await getDb().collection('salaryPayments')
+    .where('month', '==', month)
+    .where('year', '==', year)
+    .get();
+  const salaryPayments = salaryPaymentsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   const totalSalaryPaid = salaryPayments.reduce(
-    (sum, sp) => sum + sp.amount,
+    (sum, sp) => sum + (sp as { amount: number }).amount,
     0
   );
 
@@ -131,7 +182,7 @@ async function getMonthlyReport(searchParams: URLSearchParams) {
     totalExpenses,
     totalSalaryPaid,
     profitLoss,
-    feePaymentCount: feePayments.length,
+    feePaymentCount: feePaymentsWithStudent.length,
     expenseCount: expenses.length,
     salaryPaymentCount: salaryPayments.length,
   });
@@ -160,30 +211,43 @@ async function getYearlyReport(searchParams: URLSearchParams) {
   const monthlyBreakdown = [];
 
   for (const { month, year: y } of sessionMonths) {
-    const feePayments = await db.feePayment.findMany({
-      where: { month, year: y },
-      include: {
-        student: {
-          select: {
-            id: true,
-            monthlyFee: true,
-            totalYearlyFee: true,
-            coachingFee: true,
-            subjectFees: true,
-            monthlyFeeDistributions: true,
-          },
+    const feePaymentsSnapshot = await getDb().collection('feePayments')
+      .where('month', '==', month)
+      .where('year', '==', y)
+      .get();
+
+    const feePayments = feePaymentsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Fetch student data for each feePayment
+    const feePaymentsWithStudent = [];
+    for (const fp of feePayments) {
+      const student = await fetchStudentWithRelations(fp.studentId);
+      feePaymentsWithStudent.push({
+        ...fp,
+        student: student || {
+          id: fp.studentId,
+          monthlyFee: 0,
+          totalYearlyFee: 0,
+          coachingFee: 0,
+          subjects: [],
+          subjectFees: [],
+          monthlyFeeDistributions: [],
         },
-      },
-    });
-    const monthFees = feePayments.reduce((sum, fp) => sum + fp.amountPaid, 0);
+      });
+    }
+
+    const monthFees = feePaymentsWithStudent.reduce((sum, fp) => sum + fp.amountPaid, 0);
 
     // Calculate subject fees + coaching fees breakdown for this month
     let monthSubjectFees = 0;
     let monthCoachingFees = 0;
-    feePayments.forEach((fp) => {
+    feePaymentsWithStudent.forEach((fp) => {
       const student = fp.student;
       const studentSubjectTotal = student.subjectFees.reduce(
-        (sum, sf) => sum + sf.yearlyFee,
+        (sum: number, sf: { yearlyFee: number }) => sum + sf.yearlyFee,
         0
       );
       const studentCoachingFee = student.coachingFee || 0;
@@ -194,16 +258,20 @@ async function getYearlyReport(searchParams: URLSearchParams) {
       monthCoachingFees += Math.round(fp.amountPaid * coachingRatio);
     });
 
-    const expenses = await db.expense.findMany({
-      where: { month, year: y },
-    });
-    const monthExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+    const expensesSnapshot = await getDb().collection('expenses')
+      .where('month', '==', month)
+      .where('year', '==', y)
+      .get();
+    const expenses = expensesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const monthExpenses = expenses.reduce((sum, e) => sum + (e as { amount: number }).amount, 0);
 
-    const salaryPayments = await db.salaryPayment.findMany({
-      where: { month, year: y },
-    });
+    const salaryPaymentsSnapshot = await getDb().collection('salaryPayments')
+      .where('month', '==', month)
+      .where('year', '==', y)
+      .get();
+    const salaryPayments = salaryPaymentsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     const monthSalary = salaryPayments.reduce(
-      (sum, sp) => sum + sp.amount,
+      (sum, sp) => sum + (sp as { amount: number }).amount,
       0
     );
 
@@ -256,29 +324,70 @@ async function getPendingFeesReport(searchParams: URLSearchParams) {
 
   const sessionMonths = getSessionMonths(currentSessionYear);
 
-  // Get all students with their fee payments and monthly distributions for the session
-  const students = await db.student.findMany({
-    include: {
-      subjectFees: true,
-      feePayments: {
-        where: {
-          OR: sessionMonths.map(({ month, year }) => ({
-            month,
-            year,
-          })),
-        },
-      },
-      monthlyFeeDistributions: true,
-    },
-    orderBy: { className: 'asc' },
-  });
+  // Get all students
+  const studentsSnapshot = await getDb().collection('students')
+    .get();
 
   const monthNames = [
     '', 'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December',
   ];
 
-  const result = students.map((student) => {
+  const result = [];
+
+  for (const studentDoc of studentsSnapshot.docs) {
+    const studentData = studentDoc.data();
+    const studentId = studentDoc.id;
+
+    // Fetch subjectFees for this student
+    const subjectFeesSnapshot = await getDb().collection('subjectFees')
+      .where('studentId', '==', studentId)
+      .get();
+    const subjectFees = subjectFeesSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Fetch feePayments for this student in this session
+    const allFeePaymentsSnapshot = await getDb().collection('feePayments')
+      .where('studentId', '==', studentId)
+      .get();
+    const allFeePayments = allFeePaymentsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Filter feePayments to only this session's months
+    const sessionMonthKeys = new Set(
+      sessionMonths.map(({ month, year }) => `${month}-${year}`)
+    );
+    const feePayments = allFeePayments.filter(
+      (fp) => sessionMonthKeys.has(`${fp.month}-${fp.year}`)
+    );
+
+    // Fetch monthlyFeeDistributions for this student
+    const monthlyFeeDistributionsSnapshot = await getDb().collection('monthlyFeeDistributions')
+      .where('studentId', '==', studentId)
+      .get();
+    const monthlyFeeDistributions = monthlyFeeDistributionsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Build the student object matching the original Prisma shape
+    const student = {
+      id: studentId,
+      name: studentData.name,
+      className: studentData.className,
+      subjects: studentData.subjects, // native array — NO JSON.parse
+      monthlyFee: studentData.monthlyFee,
+      totalYearlyFee: studentData.totalYearlyFee,
+      coachingFee: studentData.coachingFee,
+      subjectFees,
+      feePayments,
+      monthlyFeeDistributions,
+    };
+
     const monthlyData: Record<
       string,
       {
@@ -329,7 +438,7 @@ async function getPendingFeesReport(searchParams: URLSearchParams) {
         // This month has been paid - use its amountDue (includes carry-forward)
         amountDue = payment.amountDue;
         amountPaid = payment.amountPaid;
-        paidAt = payment.paidAt;
+        paidAt = payment.paidAt instanceof Date ? payment.paidAt : new Date(fromTimestamp(payment.paidAt) || '');
 
         // Update carry-forward for next months
         const difference = amountPaid - amountDue;
@@ -372,20 +481,23 @@ async function getPendingFeesReport(searchParams: URLSearchParams) {
         amountPaid,
         status,
         colorCode,
-        paidAt: paidAt ? paidAt.toISOString() : null,
+        paidAt: paidAt ? (paidAt instanceof Date ? paidAt.toISOString() : String(paidAt)) : null,
       };
     }
 
-    return {
+    result.push({
       id: student.id,
       name: student.name,
       className: student.className,
-      subjects: JSON.parse(student.subjects),
+      subjects: student.subjects,
       monthlyFee: student.monthlyFee,
       totalYearlyFee: student.totalYearlyFee,
       monthlyData,
-    };
-  });
+    });
+  }
+
+  // Sort by className ascending (replacing Firestore orderBy)
+  result.sort((a, b) => a.className.localeCompare(b.className));
 
   return NextResponse.json({
     type: 'pending-fees',
