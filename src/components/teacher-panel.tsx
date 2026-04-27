@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAppStore } from '@/lib/store'
-import { MONTH_NAMES, SESSION_MONTHS, MONTH_SHORT, CLASS_OPTIONS } from '@/lib/types'
+import { MONTH_NAMES, SESSION_MONTHS, MONTH_SHORT, CLASS_OPTIONS, subjectsMatch, CLASS_4_8_SUBJECTS } from '@/lib/types'
 import type { TeacherData, StudentData, SalaryPayment } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -225,8 +225,9 @@ export default function TeacherPanel() {
                 )
                 if (!classMapping || classMapping.subjects.length === 0) return false
                 // Student must share at least one subject with the teacher in this class
+                // Uses backward-compatible matching (legacy "All Subjects" matches any 4-8 subject)
                 const studentSubjects = s.subjects || []
-                return studentSubjects.some((sub) => classMapping.subjects.includes(sub))
+                return subjectsMatch(studentSubjects, classMapping.subjects)
               })
               setStudents(matched)
             })
@@ -299,9 +300,12 @@ export default function TeacherPanel() {
       )
       if (!classMapping) return sum
       const teacherSubjects = classMapping.subjects
-      const relevantFees = s.subjectFees.filter((sf) =>
-        teacherSubjects.includes(sf.subject)
-      )
+      const teacherHas48Subjects = teacherSubjects.some((t) => CLASS_4_8_SUBJECTS.includes(t))
+      const relevantFees = s.subjectFees.filter((sf) => {
+        if (teacherSubjects.includes(sf.subject)) return true
+        if (sf.subject === 'All Subjects' && teacherHas48Subjects) return true
+        return false
+      })
       const subjectFeeTotal = relevantFees.reduce((s2, sf) => s2 + sf.yearlyFee, 0)
       // Coaching fee is NOT included in teacher earnings per PRD
       return sum + subjectFeeTotal
@@ -323,10 +327,13 @@ export default function TeacherPanel() {
     )
     if (!classMapping) return null
     const teacherSubjects = classMapping.subjects
-    const matchedSubjects = teacherSubjects.filter((t) => s.subjects.includes(t))
-    const relevantFees = s.subjectFees.filter((sf) =>
-      teacherSubjects.includes(sf.subject)
-    )
+    const teacherHas48Subjects = teacherSubjects.some((t) => CLASS_4_8_SUBJECTS.includes(t))
+    const matchedSubjects = teacherSubjects.filter((t) => s.subjects.includes(t) || (t === 'All Subjects' && s.subjects.some((sub) => CLASS_4_8_SUBJECTS.includes(sub))))
+    const relevantFees = s.subjectFees.filter((sf) => {
+      if (teacherSubjects.includes(sf.subject)) return true
+      if (sf.subject === 'All Subjects' && teacherHas48Subjects) return true
+      return false
+    })
     const subjectFeeTotal = relevantFees.reduce((sum, sf) => sum + sf.yearlyFee, 0)
     // Coaching fee is NOT included in teacher earnings per PRD
     const totalContribution = subjectFeeTotal
@@ -919,9 +926,12 @@ export default function TeacherPanel() {
                       (cs) => cs.className === student.className
                     )
                     const teacherSubjects = classMapping?.subjects || []
-                    const relevantFees = student.subjectFees.filter((sf) =>
-                      teacherSubjects.includes(sf.subject)
-                    )
+                    const teacherHas48Subjects = teacherSubjects.some((t) => CLASS_4_8_SUBJECTS.includes(t))
+                    const relevantFees = student.subjectFees.filter((sf) => {
+                      if (teacherSubjects.includes(sf.subject)) return true
+                      if (sf.subject === 'All Subjects' && teacherHas48Subjects) return true
+                      return false
+                    })
 
                     return (
                       <div
