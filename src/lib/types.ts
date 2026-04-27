@@ -172,6 +172,9 @@ export type StudentView =
   | 'fees'
   | 'profile'
 
+// Classes where all subjects are auto-selected (4-8)
+export const AUTO_SELECT_ALL_CLASSES = ['4', '5', '6', '7', '8']
+
 // Class definitions with subjects mapping
 export const CLASS_OPTIONS = [
   '4', '5', '6', '7', '8',
@@ -181,12 +184,40 @@ export const CLASS_OPTIONS = [
   '11 Commerce', '12 Commerce',
 ]
 
+// The 4 specific subjects for classes 4-8
+export const CLASS_4_8_SUBJECTS = ['A-4-8 Subject', 'H-4-8 Subject', 'R-4-8 Subject', 'S-4-8 Subject']
+
+/**
+ * Backward-compatible subject matching.
+ * "All Subjects" (legacy) matches with any of the 4-8 specific subjects.
+ * Used for teacher-student matching in salary & dashboard.
+ */
+export function subjectsMatch(studentSubjects: string[], teacherSubjects: string[]): boolean {
+  // Direct match
+  if (studentSubjects.some((sub) => teacherSubjects.includes(sub))) return true
+  // Legacy "All Subjects" matches with any 4-8 subject
+  if (studentSubjects.includes('All Subjects') && teacherSubjects.some((t) => CLASS_4_8_SUBJECTS.includes(t))) return true
+  if (teacherSubjects.includes('All Subjects') && studentSubjects.some((s) => CLASS_4_8_SUBJECTS.includes(s))) return true
+  return false
+}
+
+/**
+ * Normalize subjects: replace legacy "All Subjects" with the 4 specific subjects.
+ * Used when loading student data for editing.
+ */
+export function normalizeSubjects(className: string, subjects: string[]): string[] {
+  if (AUTO_SELECT_ALL_CLASSES.includes(className) && subjects.includes('All Subjects')) {
+    return [...CLASS_4_8_SUBJECTS]
+  }
+  return subjects
+}
+
 export const SUBJECTS_BY_CLASS: Record<string, string[]> = {
-  '4': ['All Subjects'],
-  '5': ['All Subjects'],
-  '6': ['All Subjects'],
-  '7': ['All Subjects'],
-  '8': ['All Subjects'],
+  '4': ['A-4-8 Subject', 'H-4-8 Subject', 'R-4-8 Subject', 'S-4-8 Subject'],
+  '5': ['A-4-8 Subject', 'H-4-8 Subject', 'R-4-8 Subject', 'S-4-8 Subject'],
+  '6': ['A-4-8 Subject', 'H-4-8 Subject', 'R-4-8 Subject', 'S-4-8 Subject'],
+  '7': ['A-4-8 Subject', 'H-4-8 Subject', 'R-4-8 Subject', 'S-4-8 Subject'],
+  '8': ['A-4-8 Subject', 'H-4-8 Subject', 'R-4-8 Subject', 'S-4-8 Subject'],
   '9 CBSE': ['Math', 'Physics', 'Chemistry', 'Biology', 'English', 'SST'],
   '10 CBSE': ['Math', 'Physics', 'Chemistry', 'Biology', 'English', 'SST'],
   '9 ICSE': ['Math', 'Physics', 'Chemistry', 'Biology', 'English', 'SST'],
