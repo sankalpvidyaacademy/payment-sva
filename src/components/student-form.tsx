@@ -36,6 +36,8 @@ import { useAppStore } from '@/lib/store'
 import {
   CLASS_OPTIONS,
   SUBJECTS_BY_CLASS,
+  AUTO_SELECT_ALL_CLASSES,
+  normalizeSubjects,
   MONTH_NAMES,
   SESSION_MONTHS,
   MONTH_SHORT,
@@ -122,8 +124,8 @@ export function StudentForm({ studentId, onSubmitted }: StudentFormProps) {
   const availableSubjects = className
     ? SUBJECTS_BY_CLASS[className] || []
     : []
-  const isAllSubjectsClass = className
-    ? ['4', '5', '6', '7', '8'].includes(className)
+  const isAutoSelectClass = className
+    ? AUTO_SELECT_ALL_CLASSES.includes(className)
     : false
   const subjectFeeTotal = subjectFees.reduce(
     (sum, sf) => sum + sf.yearlyFee,
@@ -192,7 +194,8 @@ export function StudentForm({ studentId, onSubmitted }: StudentFormProps) {
     }
 
     const subjects = SUBJECTS_BY_CLASS[className] || []
-    if (['4', '5', '6', '7', '8'].includes(className)) {
+    if (AUTO_SELECT_ALL_CLASSES.includes(className)) {
+      // Auto-select all subjects for class 4-8
       setSelectedSubjects(subjects)
       setSubjectFees(subjects.map((s) => ({ subject: s, yearlyFee: 0 })))
     } else {
@@ -275,19 +278,33 @@ export function StudentForm({ studentId, onSubmitted }: StudentFormProps) {
         }
 
         // Set subjects and fees from subjectFees
+        // Normalize legacy "All Subjects" to new 4-8 subjects
+        const normalizedSubjects = normalizeSubjects(student.className, student.subjects)
         if (student.subjectFees && student.subjectFees.length > 0) {
           const subs = student.subjectFees.map((sf) => sf.subject)
-          setSelectedSubjects(subs)
-          setSubjectFees(
-            student.subjectFees.map((sf) => ({
-              subject: sf.subject,
-              yearlyFee: sf.yearlyFee,
-            }))
-          )
+          // If student had "All Subjects" with a fee, split it across 4 new subjects
+          const allSubjFee = student.subjectFees.find((sf) => sf.subject === 'All Subjects')
+          if (allSubjFee && AUTO_SELECT_ALL_CLASSES.includes(student.className)) {
+            const newSubjects = SUBJECTS_BY_CLASS[student.className] || []
+            const feePerSubject = Math.round(allSubjFee.yearlyFee / newSubjects.length)
+            setSelectedSubjects(newSubjects)
+            setSubjectFees(newSubjects.map((s, i) => ({
+              subject: s,
+              yearlyFee: i === 0 ? allSubjFee.yearlyFee - feePerSubject * (newSubjects.length - 1) : feePerSubject,
+            })))
+          } else {
+            setSelectedSubjects(subs)
+            setSubjectFees(
+              student.subjectFees.map((sf) => ({
+                subject: sf.subject,
+                yearlyFee: sf.yearlyFee,
+              }))
+            )
+          }
         } else {
-          setSelectedSubjects(student.subjects)
+          setSelectedSubjects(normalizedSubjects)
           setSubjectFees(
-            student.subjects.map((s) => ({ subject: s, yearlyFee: 0 }))
+            normalizedSubjects.map((s) => ({ subject: s, yearlyFee: 0 }))
           )
         }
 
@@ -342,12 +359,7 @@ export function StudentForm({ studentId, onSubmitted }: StudentFormProps) {
       case 2:
         if (selectedSubjects.length === 0)
           return 'Please select at least one subject'
-        if (isAllSubjectsClass && subjectFeeTotal <= 0)
-          return 'Please enter the yearly fee for All Subjects'
-        if (
-          !isAllSubjectsClass &&
-          subjectFees.some((sf) => sf.yearlyFee <= 0)
-        )
+        if (subjectFees.some((sf) => sf.yearlyFee <= 0))
           return 'Please enter yearly fee for all selected subjects'
         if (coachingFee <= 0)
           return 'Coaching fee is required and must be greater than ₹0'
@@ -608,22 +620,7 @@ export function StudentForm({ studentId, onSubmitted }: StudentFormProps) {
               <div className="space-y-3">
                 <Label>Select Subjects *</Label>
 
-                {isAllSubjectsClass ? (
-                  <div className="flex items-center space-x-2 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
-                    <Checkbox
-                      id="all-subjects"
-                      checked={selectedSubjects.includes('All Subjects')}
-                      onCheckedChange={() => toggleSubject('All Subjects')}
-                    />
-                    <Label
-                      htmlFor="all-subjects"
-                      className="cursor-pointer font-medium text-emerald-700 dark:text-emerald-400"
-                    >
-                      All Subjects
-                    </Label>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                     {availableSubjects.map((subject) => (
                       <div
                         key={subject}
@@ -638,17 +635,22 @@ export function StudentForm({ studentId, onSubmitted }: StudentFormProps) {
                           id={`subject-${subject}`}
                           checked={selectedSubjects.includes(subject)}
                           onCheckedChange={() => toggleSubject(subject)}
+                          disabled={isAutoSelectClass}
                         />
                         <Label
                           htmlFor={`subject-${subject}`}
-                          className="cursor-pointer text-sm"
+                          className={`cursor-pointer text-sm ${isAutoSelectClass ? 'opacity-80' : ''}`}
                         >
                           {subject}
                         </Label>
                       </div>
                     ))}
                   </div>
-                )}
+                  {isAutoSelectClass && availableSubjects.length > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      All subjects are auto-selected for Class {className}
+                    </p>
+                  )}
               </div>
 
               {/* Subject Fee Inputs */}
